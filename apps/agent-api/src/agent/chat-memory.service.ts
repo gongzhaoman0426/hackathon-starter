@@ -67,48 +67,78 @@ export class ChatMemoryService {
     fullHistory: ChatMessageItem[],
     systemPrompt: string,
   ): Promise<MemoryResult> {
+    this.logger.log(`[processMemory] agent=${agentId}, session=${sessionId}, 历史消息数=${fullHistory.length}, 当前消息="${currentMessage.substring(0, 80)}"`);
+
     // 裁剪：只取最近 10 条作为 recentHistory
     const recentHistory = fullHistory.slice(-10);
+    this.logger.log(`[processMemory] 裁剪历史: ${fullHistory.length} → ${recentHistory.length} 条`);
 
     // RAG 检索相关旧对话（跨 Session）
     let relevantContext = '';
     try {
-      const relevantDocs = await this.retrieveRelevantHistory(agentId, currentMessage);
+      const relevantDocs = await this.retrieveRelevantHistory(agentId, sessionId, currentMessage);
       if (relevantDocs.length > 0) {
         relevantContext =
           '\n\n## 相关历史对话记忆\n以下是与当前话题相关的历史对话片段，供你参考：\n' +
           relevantDocs.map((doc, i) => `[记忆 ${i + 1}] ${doc}`).join('\n');
         this.logger.log(`[processMemory] 检索到 ${relevantDocs.length} 条相关记忆`);
+      } else {
+        this.logger.log(`[processMemory] 未检索到相关记忆`);
       }
     } catch (error) {
       this.logger.warn(`[processMemory] RAG 检索失败，跳过记忆增强: ${error}`);
     }
 
     const enhancedPrompt = systemPrompt + relevantContext;
+    this.logger.log(`[processMemory] prompt 长度: 原始=${systemPrompt.length}, 增强后=${enhancedPrompt.length}`);
 
     return { enhancedPrompt, recentHistory };
   }
 
   /**
-   * RAG 检索 Agent 级别的历史对话（跨 Session）
+   * RAG 检索 Agent 级别的历史对话（跨 Session），排除当前 session 最近 5 条
    */
-  async retrieveRelevantHistory(agentId: string, query: string): Promise<string[]> {
+  async retrieveRelevantHistory(agentId: string, sessionId: string, query: string): Promise<string[]> {
+    this.logger.log(`[retrieveRelevantHistory] agent=${agentId}, session=${sessionId}, query="${query.substring(0, 80)}"`);
+
     const vectorStore = await this.createVectorStore(agentId);
     const index = await this.createIndex(vectorStore);
 
     const retriever = index.asRetriever({ similarityTopK: 20 });
     const nodes = await retriever.retrieve(query);
 
+    this.logger.log(`[retrieveRelevantHistory] 向量检索返回 ${nodes.length} 条结果`);
+
     if (nodes.length === 0) {
       return [];
     }
 
-    // 筛选策略：取 score > 0.9 的条目，或 top 6，取两者中更多的
-    const highScoreNodes = nodes.filter((n: any) => (n.score || 0) > 0.9);
-    const top6 = nodes.slice(0, 6);
-    const selected = highScoreNodes.length > top6.length ? highScoreNodes : top6;
+    // 排除当前 session 最近 5 个 pair（这些已经在 recentHistory 中了）
+    const currentSessionNodes = nodes
+      .filter((n: any) => n.node?.metadata?.session_id === sessionId)
+      .sort((a: any, b: any) => (b.node?.metadata?.pair_index || 0) - (a.node?.metadata?.pair_index || 0));
+    const recentPairIndexes = new Set(
+      currentSessionNodes.slice(0, 5).map((n: any) => `${n.node?.metadata?.session_id}_${n.node?.metadata?.pair_index}`),
+    );
 
-    // 按 metadata 中的 timestamp 排序（如果有的话）
+    const filtered = nodes.filter((n: any) => {
+      const key = `${n.node?.metadata?.session_id}_${n.node?.metadata?.pair_index}`;
+      return !recentPairIndexes.has(key);
+    });
+
+    this.logger.log(`[retrieveRelevantHistory] 排除当前session最近5条后剩余 ${filtered.length} 条`);
+
+    if (filtered.length === 0) {
+      return [];
+    }
+
+    // 筛选策略：取 score > 0.9 的条目，或 top 6，取两者中更多的
+    const highScoreNodes = filtered.filter((n: any) => (n.score || 0) > 0.9);
+    const top6 = filtered.slice(0, 6);
+    const selected = highScoreNodes.length > top6.length ? highScoreNodes : top6;
+    this.logger.log(`[retrieveRelevantHistory] 筛选: highScore(>0.9)=${highScoreNodes.length}, top6=${top6.length}, 最终选取=${selected.length}`);
+
+    // 按 metadata 中的 timestamp 排序
     const sorted = selected.sort((a: any, b: any) => {
       const tsA = a.node?.metadata?.timestamp || 0;
       const tsB = b.node?.metadata?.timestamp || 0;
@@ -132,6 +162,8 @@ export class ChatMemoryService {
     fullHistory: ChatMessageItem[],
   ): Promise<void> {
     try {
+      this.logger.log(`[vectorizeOlderPairs] 开始处理 agent=${agentId}, session=${sessionId}, 历史消息数=${fullHistory.length}`);
+
       // 提取所有 Q&A 对
       const pairs: Array<{ index: number; user: string; assistant: string }> = [];
       for (let i = 0; i < fullHistory.length - 1; i++) {
@@ -144,11 +176,14 @@ export class ChatMemoryService {
         }
       }
 
-      // 排除最近 5 对，只向量化更早的
-      if (pairs.length <= 5) {
+      this.logger.log(`[vectorizeOlderPairs] 提取到 ${pairs.length} 个 Q&A 对`);
+
+      // 所有 Q&A 对都向量化，检索时再排除当前 session 最近的
+      if (pairs.length === 0) {
+        this.logger.log(`[vectorizeOlderPairs] 无 Q&A 对，跳过向量化`);
         return;
       }
-      const olderPairs = pairs.slice(0, pairs.length - 5);
+      const allPairs = pairs;
 
       // 查询已处理的去重标识
       const collection = this.getCollectionName(agentId);
@@ -162,7 +197,7 @@ export class ChatMemoryService {
       );
 
       // 过滤已处理的
-      const newPairs = olderPairs.filter(
+      const newPairs = allPairs.filter(
         (p) => !existingKeys.has(`${sessionId}_${p.index}`),
       );
 
