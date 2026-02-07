@@ -10,6 +10,7 @@ import { Textarea } from '@workspace/ui/components/textarea'
 import { Separator } from '@workspace/ui/components/separator'
 import { ScrollArea } from '@workspace/ui/components/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs'
+import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles } from 'lucide-react'
 import { useAgents, useCreateAgent, useDeleteAgent } from '../services/agent.service'
 import { useToolkits } from '../services/toolkit.service'
 import { useKnowledgeBases } from '../services/knowledge-base.service'
@@ -69,102 +70,165 @@ export function Agents() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+          <p className="text-sm text-muted-foreground">加载中...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">智能体管理</h1>
-          <p className="text-muted-foreground">创建和管理您的AI智能体</p>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <Bot className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">智能体管理</h1>
+              <p className="text-sm text-muted-foreground">创建和管理您的AI智能体</p>
+            </div>
+          </div>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
           创建智能体
         </Button>
       </div>
 
+      {/* Stats Bar */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+              <Bot className="h-4 w-4 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{agents.length}</p>
+              <p className="text-xs text-muted-foreground">智能体总数</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+              <Wrench className="h-4 w-4 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{toolkits.length}</p>
+              <p className="text-xs text-muted-foreground">可用工具包</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+              <BookOpen className="h-4 w-4 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{knowledgeBases.length}</p>
+              <p className="text-xs text-muted-foreground">知识库数量</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Agents Grid */}
       {agents.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {agents.map((agent) => (
-            <Card key={agent.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{agent.name}</CardTitle>
-                  <Badge variant="secondary">🤖</Badge>
-                </div>
-                <CardDescription>
-                  {agent.description || '暂无描述'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-2">提示词预览:</p>
-                    <p className="text-sm bg-muted p-2 rounded text-ellipsis overflow-hidden">
-                      {agent.prompt.length > 100
-                        ? `${agent.prompt.substring(0, 100)}...`
-                        : agent.prompt
-                      }
-                    </p>
+            <Card key={agent.id} className="group relative overflow-hidden border transition-all hover:shadow-md hover:border-primary/20">
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 to-primary/20" />
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <Bot className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-base truncate">{agent.name}</CardTitle>
+                      <CardDescription className="text-xs mt-0.5 line-clamp-1">
+                        {agent.description || '暂无描述'}
+                      </CardDescription>
+                    </div>
                   </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                {/* Prompt Preview */}
+                <div className="rounded-lg bg-muted/50 p-2.5">
+                  <p className="text-xs text-muted-foreground mb-1 font-medium">提示词</p>
+                  <p className="text-xs leading-relaxed line-clamp-2">
+                    {agent.prompt.length > 100
+                      ? `${agent.prompt.substring(0, 100)}...`
+                      : agent.prompt
+                    }
+                  </p>
+                </div>
 
+                {/* Toolkits & Knowledge Bases */}
+                <div className="space-y-2">
                   {agent.agentToolkits && agent.agentToolkits.length > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">工具包:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {agent.agentToolkits.map((at: any) => (
-                          <Badge key={at.id} variant="outline" className="text-xs">
-                            {at.toolkit.name}
-                          </Badge>
-                        ))}
-                      </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Wrench className="h-3 w-3 text-muted-foreground shrink-0" />
+                      {agent.agentToolkits.map((at: any) => (
+                        <Badge key={at.id} variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                          {at.toolkit.name}
+                        </Badge>
+                      ))}
                     </div>
                   )}
 
                   {agent.agentKnowledgeBases && agent.agentKnowledgeBases.length > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">知识库:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {agent.agentKnowledgeBases.map((akb: any) => (
-                          <Badge key={akb.id} variant="secondary" className="text-xs">
-                            {akb.knowledgeBase.name}
-                          </Badge>
-                        ))}
-                      </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <BookOpen className="h-3 w-3 text-muted-foreground shrink-0" />
+                      {agent.agentKnowledgeBases.map((akb: any) => (
+                        <Badge key={akb.id} variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                          {akb.knowledgeBase.name}
+                        </Badge>
+                      ))}
                     </div>
                   )}
+                </div>
 
-                  <div className="flex gap-2">
-                    <Link to={`/?agent=${agent.id}`} className="flex-1">
-                      <Button className="w-full" size="sm">
-                        对话测试
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(agent.id)}
-                    >
-                      删除
+                <Separator />
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Link to={`/?agent=${agent.id}`} className="flex-1">
+                    <Button className="w-full gap-1.5" size="sm" variant="default">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      对话测试
                     </Button>
-                  </div>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(agent.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-6xl mb-4">🤖</div>
-            <h3 className="text-lg font-semibold mb-2">暂无智能体</h3>
-            <p className="text-muted-foreground mb-4">创建您的第一个智能体开始使用</p>
-            <Button onClick={() => setCreateDialogOpen(true)}>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-4">
+              <Bot className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">暂无智能体</h3>
+            <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
+              创建您的第一个智能体，配置工具包和知识库，开始智能对话
+            </p>
+            <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
               创建智能体
             </Button>
           </CardContent>
@@ -175,10 +239,17 @@ export function Agents() {
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>创建智能体</DialogTitle>
-            <DialogDescription>
-              配置您的AI智能体的基本信息和能力
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <DialogTitle>创建智能体</DialogTitle>
+                <DialogDescription>
+                  配置您的AI智能体的基本信息和能力
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <ScrollArea className="max-h-[70vh] pr-4">
@@ -222,8 +293,14 @@ export function Agents() {
               {/* 能力配置 */}
               <Tabs defaultValue="toolkits" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="toolkits">工具包配置</TabsTrigger>
-                  <TabsTrigger value="knowledge">知识库配置</TabsTrigger>
+                  <TabsTrigger value="toolkits" className="gap-1.5">
+                    <Wrench className="h-3.5 w-3.5" />
+                    工具包配置
+                  </TabsTrigger>
+                  <TabsTrigger value="knowledge" className="gap-1.5">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    知识库配置
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="toolkits" className="space-y-4">
@@ -234,7 +311,7 @@ export function Agents() {
                     </p>
                     <div className="grid grid-cols-1 gap-3">
                       {toolkits.map((toolkit) => (
-                        <div key={toolkit.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                        <div key={toolkit.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                           <input
                             type="checkbox"
                             id={`toolkit-${toolkit.id}`}
@@ -290,7 +367,7 @@ export function Agents() {
                     </p>
                     <div className="grid grid-cols-1 gap-3">
                       {knowledgeBases.map((kb: any) => (
-                        <div key={kb.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                        <div key={kb.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                           <input
                             type="checkbox"
                             id={`kb-${kb.id}`}
