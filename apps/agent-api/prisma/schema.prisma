@@ -86,6 +86,7 @@ model WorkFlow {
   name      String
   description String?
   DSL       Json
+  source      String   @default("api")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deleted     Boolean  @default(false)

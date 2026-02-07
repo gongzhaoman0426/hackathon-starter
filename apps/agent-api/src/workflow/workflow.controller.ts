@@ -1,6 +1,7 @@
-import { Body, Controller, Post, Get, Param, Delete, Put } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, Delete, Put, ForbiddenException } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
 
+import { WorkflowDiscoveryService } from './workflow-discovery.service';
 import { WorkflowService } from './workflow.service';
 import dslSchema from './DSL_schema/dsl_schema_v1.json';
 
@@ -56,7 +57,10 @@ export class UpdateWorkflowAgentDto {
 
 @Controller('workflows')
 export class WorkflowController {
-  constructor(private readonly workflowService: WorkflowService) {}
+  constructor(
+    private readonly workflowService: WorkflowService,
+    private readonly workflowDiscoveryService: WorkflowDiscoveryService,
+  ) {}
 
   @Post('generate-dsl')
   async generateDsl(@Body() body: CreateWorkflowDslDto) {
@@ -113,6 +117,9 @@ export class WorkflowController {
 
   @Delete(':id')
   async deleteWorkflow(@Param('id') id: string) {
+    if (this.workflowDiscoveryService.isCodeWorkflow(id)) {
+      throw new ForbiddenException('Cannot delete a code-defined workflow');
+    }
     // 先清理关联的智能体
     await this.workflowService.deleteWorkflowAgents(id);
     // 再删除工作流

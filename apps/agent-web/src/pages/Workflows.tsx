@@ -232,7 +232,9 @@ export function Workflows() {
                       </CardDescription>
                     </div>
                   </div>
-                  <Badge variant="secondary" className="shrink-0 text-xs">工作流</Badge>
+                  <Badge variant="secondary" className="shrink-0 text-xs">
+                    {workflow.source === 'code' ? '内置工作流' : '工作流'}
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 pt-0">
@@ -259,14 +261,16 @@ export function Workflows() {
                     <Play className="h-3.5 w-3.5" />
                     执行工作流
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(workflow.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {workflow.source !== 'code' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDelete(workflow.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

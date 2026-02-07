@@ -584,7 +584,12 @@ const classification = JSON.parse(resultString); // 如果需要结构化数据�
 
   async deleteWorkflow(id: string) {
     // 验证工作流存在
-    await this.getWorkflow(id);
+    const workflow = await this.getWorkflow(id);
+
+    // 安全兜底：防止删除代码定义的工作流
+    if ((workflow as any).source === 'code') {
+      throw new Error('Cannot delete a code-defined workflow');
+    }
 
     return this.prismaService.workFlow.update({
       where: { id },

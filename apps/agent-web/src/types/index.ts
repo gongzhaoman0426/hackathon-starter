@@ -57,6 +57,7 @@ export interface Workflow {
   name: string;
   description: string;
   DSL: any;
+  source?: 'api' | 'code';
   createdAt: string;
   updatedAt: string;
   deleted: boolean;
