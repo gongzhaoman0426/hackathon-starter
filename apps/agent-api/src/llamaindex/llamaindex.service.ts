@@ -70,4 +70,16 @@ export class LlamaindexService implements OnModuleInit {
       verbose: false,
     });
   }
+
+  async chat(message: string, systemPrompt?: string): Promise<string> {
+    const llm = this.defaultLlm;
+    if (!llm) throw new Error('LLM not initialized');
+    const response = await llm.chat({
+      messages: [
+        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+        { role: 'user' as const, content: message },
+      ],
+    });
+    return response.message.content as string;
+  }
 }

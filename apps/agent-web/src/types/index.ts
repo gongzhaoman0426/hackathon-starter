@@ -88,6 +88,7 @@ export interface CreateAgentDto {
 export interface ChatWithAgentDto {
   message: string;
   context?: any;
+  generateTitle?: boolean;
 }
 
 export interface GenerateDslDto {

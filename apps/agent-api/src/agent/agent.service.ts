@@ -293,7 +293,7 @@ export class AgentService {
     const elapsed = Date.now() - startTime;
     this.logger.log(`[Chat] Response (${elapsed}ms): ${response.data.result.substring(0, 200)}${response.data.result.length > 200 ? '...' : ''}`);
 
-    return {
+    const result: any = {
       agentId,
       agentName: agent.name,
       userMessage: chatDto.message,
@@ -301,6 +301,26 @@ export class AgentService {
       timestamp: new Date().toISOString(),
       context: chatDto.context || {},
     };
+
+    // 第一次对话时生成标题
+    if (chatDto.generateTitle) {
+      try {
+        result.title = await this.generateTitle(chatDto.message);
+      } catch (error) {
+        this.logger.warn(`[Chat] Failed to generate title: ${error}`);
+        result.title = chatDto.message.slice(0, 50);
+      }
+    }
+
+    return result;
+  }
+
+  private async generateTitle(userMessage: string): Promise<string> {
+    const reply = await this.llamaIndexService.chat(
+      userMessage,
+      '根据用户的消息，生成一个简短的对话标题（不超过20个字）。只输出标题本身，不要加引号、标点或任何额外内容。',
+    );
+    return reply.trim().slice(0, 50);
   }
 
   async getAgentToolkits(agentId: string) {

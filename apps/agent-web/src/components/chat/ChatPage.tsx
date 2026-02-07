@@ -49,6 +49,8 @@ export function ChatPage() {
         navigate(`/chat/${newSession.id}`, { replace: true })
       }
 
+      const isFirstMessage = !sessionId
+
       const userMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'user',
@@ -60,7 +62,7 @@ export function ChatPage() {
       try {
         const response = await chatMutation.mutateAsync({
           id: currentAgentId,
-          data: { message: content, context: {} },
+          data: { message: content, context: {}, generateTitle: isFirstMessage },
         })
 
         const assistantMessage: ChatMessage = {
@@ -70,6 +72,10 @@ export function ChatPage() {
           timestamp: new Date().toISOString(),
         }
         addMessage(activeSessionId, assistantMessage)
+
+        if (isFirstMessage && response.title) {
+          chatStorage.updateSessionTitle(activeSessionId, response.title)
+        }
       } catch {
         const errorMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),

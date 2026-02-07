@@ -62,13 +62,15 @@ export const chatStorage = {
     if (idx === -1) return
     const session = { ...sessions[idx]!, messages: [...sessions[idx]!.messages, message] }
     session.updatedAt = new Date().toISOString()
-    if (
-      message.role === 'user' &&
-      session.messages.filter((m) => m.role === 'user').length === 1
-    ) {
-      session.title = message.content.slice(0, 50)
-    }
     sessions[idx] = session
+    writeSessions(sessions)
+  },
+
+  updateSessionTitle(sessionId: string, title: string) {
+    const sessions = [...readSessions()]
+    const idx = sessions.findIndex((s) => s.id === sessionId)
+    if (idx === -1) return
+    sessions[idx] = { ...sessions[idx]!, title, updatedAt: new Date().toISOString() }
     writeSessions(sessions)
   },
 

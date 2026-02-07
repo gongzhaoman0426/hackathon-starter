@@ -87,4 +87,7 @@ export class ChatWithAgentDto {
   @IsObject()
   @IsOptional()
   context?: any;
+
+  @IsOptional()
+  generateTitle?: boolean;
 }
