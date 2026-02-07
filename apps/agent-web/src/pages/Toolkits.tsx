@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Badge } from '@workspace/ui/components/badge'
 import { Separator } from '@workspace/ui/components/separator'
-import { Wrench, Package, ChevronDown, ChevronRight, Settings, Code } from 'lucide-react'
+import { Wrench, Package, ChevronDown, ChevronRight, Code, Settings } from 'lucide-react'
 import { apiClient } from '../lib/api'
 import type { Toolkit } from '../types'
 
@@ -172,21 +172,31 @@ export function Toolkits() {
                   ))}
                 </div>
 
-                {/* Toolkit Settings */}
-                {toolkit.settings && Object.keys(toolkit.settings).length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="rounded-lg bg-muted/50 p-2.5">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Settings className="h-3 w-3 text-muted-foreground" />
-                        <p className="text-xs font-medium text-muted-foreground">工具包配置</p>
+                {/* Toolkit Settings (filter out implicit fields like agentId) */}
+                {(() => {
+                  if (!toolkit.settings) return null
+                  const hiddenKeys = ['agentId']
+                  const visibleEntries = Object.entries(toolkit.settings).filter(
+                    ([key]) => !hiddenKeys.includes(key)
+                  )
+                  if (visibleEntries.length === 0) return null
+                  const visibleSettings = Object.fromEntries(visibleEntries)
+                  return (
+                    <>
+                      <Separator />
+                      <div className="rounded-lg bg-muted/50 p-2.5">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Settings className="h-3 w-3 text-muted-foreground" />
+                          <p className="text-xs font-medium text-muted-foreground">工具包配置</p>
+                        </div>
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                          {JSON.stringify(visibleSettings, null, 2)}
+                        </pre>
                       </div>
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                        {JSON.stringify(toolkit.settings, null, 2)}
-                      </pre>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )
+                })()}
+
               </CardContent>
             </Card>
           ))}
