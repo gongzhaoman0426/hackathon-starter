@@ -60,9 +60,23 @@ export function ChatPage() {
       addMessage(activeSessionId, userMessage)
 
       try {
+        // 获取当前会话的历史消息，传递给后端以保持上下文
+        const currentMessages = chatStorage.getSession(activeSessionId)?.messages || []
+        // 排除刚添加的用户消息（已在 message 字段中），只传之前的历史
+        const history = currentMessages.slice(0, -1).map((m) => ({
+          role: m.role,
+          content: m.content,
+        }))
+
         const response = await chatMutation.mutateAsync({
           id: currentAgentId,
-          data: { message: content, context: {}, generateTitle: isFirstMessage },
+          data: {
+            message: content,
+            sessionId: activeSessionId,
+            history,
+            context: {},
+            generateTitle: isFirstMessage,
+          },
         })
 
         const assistantMessage: ChatMessage = {

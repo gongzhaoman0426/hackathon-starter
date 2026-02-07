@@ -3,6 +3,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ToolsService } from '../tool/tools.service';
 
 import { CreateAgentDto, UpdateAgentDto, ChatWithAgentDto } from './agent.type';
+import { ChatMemoryService } from './chat-memory.service';
 import { LlamaindexService } from '../llamaindex/llamaindex.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -14,6 +15,7 @@ export class AgentService {
     private readonly prisma: PrismaService,
     private readonly llamaIndexService: LlamaindexService,
     private readonly toolsService: ToolsService,
+    private readonly chatMemoryService: ChatMemoryService,
   ) {}
 
   async findAll() {
@@ -282,14 +284,31 @@ export class AgentService {
     const tools = await this.toolsService.getAgentTools(agentId);
     this.logger.log(`[Chat] Available tools: ${tools.map((t: any) => t.metadata?.name || t.name).join(', ')}`);
 
-    // 创建智能体实例
+    // 处理聊天记忆：裁剪历史 + RAG 检索 + 增强 prompt
+    const fullHistory = (chatDto.history || []).map((msg) => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    }));
+
+    const { enhancedPrompt, recentHistory } =
+      await this.chatMemoryService.processMemory(
+        agentId,
+        chatDto.sessionId,
+        chatDto.message,
+        fullHistory,
+        agent.prompt,
+      );
+
+    // 创建智能体实例（使用增强后的 prompt）
     const agentInstance = await this.llamaIndexService.createAgent(
       tools,
-      agent.prompt,
+      enhancedPrompt,
     );
 
-    // 执行对话
-    const response = await agentInstance.run(chatDto.message);
+    // 执行对话（只传入最近的历史消息）
+    const response = await agentInstance.run(chatDto.message, {
+      chatHistory: recentHistory,
+    });
     const elapsed = Date.now() - startTime;
     this.logger.log(`[Chat] Response (${elapsed}ms): ${response.data.result.substring(0, 200)}${response.data.result.length > 200 ? '...' : ''}`);
 
@@ -311,6 +330,16 @@ export class AgentService {
         result.title = chatDto.message.slice(0, 50);
       }
     }
+
+    // 异步向量化较早的 Q&A 对（fire-and-forget，不阻塞响应）
+    const historyWithCurrentReply = [
+      ...fullHistory,
+      { role: 'user' as const, content: chatDto.message },
+      { role: 'assistant' as const, content: response.data.result },
+    ];
+    this.chatMemoryService
+      .vectorizeOlderPairs(agentId, chatDto.sessionId, historyWithCurrentReply)
+      .catch((err) => this.logger.error(`[Chat] 异步向量化失败: ${err}`));
 
     return result;
   }

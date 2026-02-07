@@ -87,6 +87,8 @@ export interface CreateAgentDto {
 
 export interface ChatWithAgentDto {
   message: string;
+  sessionId: string;
+  history?: { role: 'user' | 'assistant'; content: string }[];
   context?: any;
   generateTitle?: boolean;
 }
