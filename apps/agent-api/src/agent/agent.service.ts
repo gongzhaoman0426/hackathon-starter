@@ -183,16 +183,21 @@ export class AgentService {
 
     // 如果提供了工具包配置，则更新工具包分配
     if (updateAgentDto.toolkits) {
-      // 先删除现有的工具包分配
       await this.prisma.agentToolkit.deleteMany({
         where: { agentId: id },
       });
-
-      // 重新分配工具包
       await this.assignToolkitsToAgent(id, updateAgentDto);
     }
 
-    return agent;
+    // 如果提供了知识库配置，则更新知识库分配
+    if (updateAgentDto.knowledgeBases) {
+      await this.prisma.agentKnowledgeBase.deleteMany({
+        where: { agentId: id },
+      });
+      await this.assignKnowledgeBasesToAgent(id, updateAgentDto);
+    }
+
+    return this.findOne(id);
   }
 
   async remove(id: string) {

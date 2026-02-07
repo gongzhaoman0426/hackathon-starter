@@ -9,8 +9,8 @@ import { Label } from '@workspace/ui/components/label'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { Separator } from '@workspace/ui/components/separator'
 import { cn } from '@workspace/ui/lib/utils'
-import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles, ChevronRight, ChevronLeft, Check } from 'lucide-react'
-import { useAgents, useCreateAgent, useDeleteAgent } from '../services/agent.service'
+import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles, ChevronRight, ChevronLeft, Check, Pencil } from 'lucide-react'
+import { useAgents, useCreateAgent, useDeleteAgent, useUpdateAgent } from '../services/agent.service'
 import { useToolkits } from '../services/toolkit.service'
 import { useKnowledgeBases } from '../services/knowledge-base.service'
 import { useConfirmDialog } from '../hooks/use-confirm-dialog'
@@ -37,10 +37,12 @@ export function Agents() {
   const { data: toolkits = [], isLoading: toolkitsLoading } = useToolkits()
   const { data: knowledgeBases = [], isLoading: kbLoading } = useKnowledgeBases()
   const createAgentMutation = useCreateAgent()
+  const updateAgentMutation = useUpdateAgent()
   const deleteAgentMutation = useDeleteAgent()
   const { confirm, alert, ConfirmDialog } = useConfirmDialog()
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [step, setStep] = useState(0)
   const [formData, setFormData] = useState<CreateAgentDto>({ ...initialFormData })
 
@@ -69,14 +71,40 @@ export function Agents() {
     }
   }
 
+  const handleUpdate = async () => {
+    if (!editingAgentId || !formData.name || !formData.prompt) return
+    try {
+      await updateAgentMutation.mutateAsync({ id: editingAgentId, data: formData })
+      closeDialog()
+    } catch (error) {
+      console.error('Failed to update agent:', error)
+    }
+  }
+
   const openDialog = () => {
+    setEditingAgentId(null)
     setFormData({ ...initialFormData })
+    setStep(0)
+    setCreateDialogOpen(true)
+  }
+
+  const openEditDialog = (agent: any) => {
+    setEditingAgentId(agent.id)
+    setFormData({
+      name: agent.name,
+      description: agent.description || '',
+      prompt: agent.prompt,
+      options: agent.options || {},
+      toolkits: agent.agentToolkits?.map((at: any) => ({ toolkitId: at.toolkit.id, settings: at.settings })) || [],
+      knowledgeBases: agent.agentKnowledgeBases?.map((akb: any) => akb.knowledgeBase.id) || [],
+    })
     setStep(0)
     setCreateDialogOpen(true)
   }
 
   const closeDialog = () => {
     setCreateDialogOpen(false)
+    setEditingAgentId(null)
     setStep(0)
     setFormData({ ...initialFormData })
   }
@@ -245,6 +273,14 @@ export function Agents() {
                   <Button
                     variant="ghost"
                     size="sm"
+                    className="text-muted-foreground hover:text-primary"
+                    onClick={() => openEditDialog(agent)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => handleDelete(agent.id)}
                   >
@@ -284,7 +320,7 @@ export function Agents() {
                   <Sparkles className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <DialogTitle>创建智能体</DialogTitle>
+                  <DialogTitle>{editingAgentId ? '编辑智能体' : '创建智能体'}</DialogTitle>
                   <DialogDescription>
                     {STEPS[step]?.description}
                   </DialogDescription>
@@ -609,13 +645,18 @@ export function Agents() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={closeDialog} disabled={createAgentMutation.isPending}>
+              <Button variant="outline" size="sm" onClick={closeDialog} disabled={createAgentMutation.isPending || updateAgentMutation.isPending}>
                 取消
               </Button>
               {step < STEPS.length - 1 ? (
                 <Button size="sm" onClick={handleNext} disabled={!canGoNext()} className="gap-1.5">
                   下一步
                   <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : editingAgentId ? (
+                <Button size="sm" onClick={handleUpdate} disabled={updateAgentMutation.isPending} className="gap-1.5">
+                  {updateAgentMutation.isPending ? '保存中...' : '保存修改'}
+                  {!updateAgentMutation.isPending && <Check className="h-4 w-4" />}
                 </Button>
               ) : (
                 <Button size="sm" onClick={handleCreate} disabled={createAgentMutation.isPending} className="gap-1.5">

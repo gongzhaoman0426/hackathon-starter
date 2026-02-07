@@ -115,7 +115,7 @@ export class KnowledgeBaseService {
   }
 
   async updateKnowledgeBase(
-    userId: string,
+    userId: string | undefined,
     knowledgeBaseId: string,
     updateKnowledgeBaseDto: UpdateKnowledgeBaseDto,
   ): Promise<void> {
@@ -123,7 +123,11 @@ export class KnowledgeBaseService {
       where: { id: knowledgeBaseId },
     });
 
-    if (!knowledgeBase || knowledgeBase.createdById !== userId) {
+    if (!knowledgeBase) {
+      throw new NotFoundException(`Knowledge base with ID ${knowledgeBaseId} not found`);
+    }
+
+    if (userId && knowledgeBase.createdById !== userId) {
       throw new ForbiddenException(
         `You don't have permission to update this knowledge base`,
       );
@@ -152,20 +156,28 @@ export class KnowledgeBaseService {
   }
 
   async deleteKnowledgeBase(
-    userId: string,
+    userId: string | undefined,
     knowledgeBaseId: string,
   ): Promise<void> {
     const knowledgeBase = await this.prisma.knowledgeBase.findUnique({
       where: { id: knowledgeBaseId },
     });
 
-    if (!knowledgeBase || knowledgeBase.createdById !== userId) {
+    if (!knowledgeBase) {
+      throw new NotFoundException(`Knowledge base with ID ${knowledgeBaseId} not found`);
+    }
+
+    if (userId && knowledgeBase.createdById !== userId) {
       throw new ForbiddenException(
         `You don't have permission to delete this knowledge base`,
       );
     }
 
     await this.prisma.agentKnowledgeBase.deleteMany({
+      where: { knowledgeBaseId },
+    });
+
+    await this.prisma.file.deleteMany({
       where: { knowledgeBaseId },
     });
 
@@ -266,6 +278,7 @@ export class KnowledgeBaseService {
       const nodes = markdownParser.getNodesFromDocuments(documents);
 
       nodes.forEach((node) => {
+        node.metadata.file_id = fileId;
         this.logger.log(`训练内容：${node.text}`);
       });
 
@@ -331,11 +344,12 @@ export class KnowledgeBaseService {
 
         // 3. 删除向量存储中的数据
         try {
-          await this.prisma.$executeRawUnsafe(
-            `DELETE FROM public.llamaindex_embedding WHERE collection = $1 AND metadata->>'ref_doc_id' = $2`,
+          const result = await this.prisma.$executeRawUnsafe(
+            `DELETE FROM public.llamaindex_embedding WHERE collection = $1 AND metadata->>'file_id' = $2`,
             knowledgeBase.vectorStoreName,
             fileId,
           );
+          this.logger.log(`[DeleteFile] Removed ${result} vector(s) for file ${fileId} from collection ${knowledgeBase.vectorStoreName}`);
         } catch (error: any) {
           // 记录错误但不中断流程
           this.logger.error(
