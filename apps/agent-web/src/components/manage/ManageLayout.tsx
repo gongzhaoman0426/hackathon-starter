@@ -3,7 +3,7 @@ import { ChatSidebar } from '../chat/ChatSidebar'
 import { ChatSidebarToggle } from '../chat/ChatSidebarToggle'
 
 const pageTitles: Record<string, string> = {
-  '/manage/agents': '智能体管理',
+  '/manage/agents': '智能体',
   '/manage/toolkits': '工具包',
   '/manage/workflows': '工作流',
   '/manage/knowledge-bases': '知识库',

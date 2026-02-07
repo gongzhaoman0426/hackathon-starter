@@ -8,7 +8,7 @@ import { useSidebar } from '../../hooks/use-sidebar'
 import { ChatSidebarHistory } from './ChatSidebarHistory'
 
 const manageNav = [
-  { name: '智能体管理', href: '/manage/agents', icon: Bot },
+  { name: '智能体', href: '/manage/agents', icon: Bot },
   { name: '工具包', href: '/manage/toolkits', icon: Wrench },
   { name: '工作流', href: '/manage/workflows', icon: GitBranch },
   { name: '知识库', href: '/manage/knowledge-bases', icon: BookOpen },

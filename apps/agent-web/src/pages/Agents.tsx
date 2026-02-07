@@ -189,7 +189,7 @@ export function Agents() {
               <Bot className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">智能体管理</h1>
+              <h1 className="text-2xl font-bold tracking-tight">智能体</h1>
               <p className="text-sm text-muted-foreground">创建和管理您的AI智能体</p>
             </div>
           </div>
