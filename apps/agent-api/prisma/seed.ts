@@ -5,11 +5,15 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 开始播种数据...');
 
-  // 清理现有数据
+  // 清理现有数据（按外键依赖顺序删除）
   await prisma.agentTool.deleteMany();
   await prisma.agentToolkit.deleteMany();
+  await prisma.agentKnowledgeBase.deleteMany();
+  await prisma.workflowAgent.deleteMany();
   await prisma.agent.deleteMany();
   await prisma.workFlow.deleteMany();
+  await prisma.file.deleteMany();
+  await prisma.knowledgeBase.deleteMany();
   await prisma.tool.deleteMany();
   await prisma.toolkit.deleteMany();
 
@@ -195,48 +199,40 @@ async function main() {
   console.log('🔗 工具关联完成');
 
   // 创建示例工作流
-  const emailSummaryWorkflow = await prisma.workFlow.create({
+  const timeQueryWorkflow = await prisma.workFlow.create({
     data: {
-      name: 'AI邮件摘要与推送',
-      description: 'AI自动摘要邮件并通过企业微信推送',
+      name: '智能时间查询助手',
+      description: '根据用户输入的城市或时区，查询当前时间并由AI生成友好的回复',
       DSL: {
-        id: 'workflowMailSummarySend',
-        name: 'AI邮件摘要与推送',
-        description: 'AI自动摘要邮件并通过企业微信推送',
+        id: 'workflowSmartTimeQuery',
+        name: '智能时间查询助手',
+        description: '根据用户输入的城市或时区，查询当前时间并由AI生成友好的回复',
         version: 'v1',
-        tools: ['summarize', 'sendWeCom'],
+        tools: ['getCurrentTime'],
         agents: [
           {
-            name: 'mailSummarizerAgent',
-            description: '基于LLM对邮件内容进行结构化摘要',
-            prompt: '请总结输入的邮件内容，简洁扼要，输出JSON格式',
-            output: { summary: 'string' },
-            tools: ['summarize'],
+            name: 'timeReplyAgent',
+            description: '根据时间查询结果生成友好的自然语言回复',
+            prompt: '你是一个友好的时间助手。用户会给你一段包含城市/时区和对应当前时间的信息，请用简洁友好的方式回复用户，包含时间信息和一句简短的当地问候或小贴士。输出JSON格式。',
+            output: { reply: 'string' },
+            tools: ['getCurrentTime'],
           },
         ],
         content: {},
         events: [
           {
             type: 'WORKFLOW_START',
-            data: { emailContent: 'string' },
-          },
-          {
-            type: 'SUMMARY_DONE',
-            data: { summary: 'string' },
+            data: { message: 'string' },
           },
           {
             type: 'WORKFLOW_STOP',
-            data: { sendResult: 'string' },
+            data: { result: 'string' },
           },
         ],
         steps: [
           {
             event: 'WORKFLOW_START',
-            handle: 'async (event, context) => { const { summary } = await mailSummarizerAgent({ emailContent: event.data.emailContent }); return { type: "SUMMARY_DONE", data: { summary } }; }',
-          },
-          {
-            event: 'SUMMARY_DONE',
-            handle: 'async (event, context) => { const sendResult = await sendWeCom({ text: event.data.summary }); return { type: "WORKFLOW_STOP", data: { sendResult } }; }',
+            handle: 'async (event, context) => { const timeResult = await getCurrentTime.call({ timezone: "Asia/Shanghai" }); const response = await timeReplyAgent.run("用户问题: " + event.data.message + "\\n当前时间信息: " + JSON.stringify(timeResult)); const resultString = response.data.result; return { type: "WORKFLOW_STOP", data: { result: resultString } }; }',
           },
         ],
       },
