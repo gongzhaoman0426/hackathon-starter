@@ -9,7 +9,10 @@ import {
   VectorStoreIndex,
   LlamaParseReader,
   MarkdownNodeParser,
+  Settings,
 } from 'llamaindex';
+import { OpenAIEmbedding, openai } from '@llamaindex/openai';
+import { PGVectorStore } from '@llamaindex/postgres';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -34,20 +37,40 @@ export class KnowledgeBaseService {
     }
   }
 
+  private ensureLlamaIndexSettings() {
+    Settings.embedModel = new OpenAIEmbedding({
+      model: 'text-embedding-3-small',
+      dimensions: 1536,
+    });
+    Settings.llm = openai({
+      model: 'gpt-5.2',
+      temperature: 0.7,
+      apiKey: process.env.OPENAI_API_KEY,
+      additionalSessionOptions: {
+        baseURL: process.env.OPENAI_BASE_URL,
+      },
+    });
+  }
+
   private async createVectorStore(
     vectorStoreName: string,
-  ): Promise<any> {
-    // 简化实现，使用内存向量存储
-    // 在生产环境中应该使用真正的 PGVectorStore
-    this.logger.warn(`Using simplified vector store for: ${vectorStoreName}`);
-    return null;
+  ): Promise<PGVectorStore> {
+    this.ensureLlamaIndexSettings();
+    const pgVectorStore = new PGVectorStore({
+      clientConfig: {
+        connectionString: process.env.DATABASE_URL,
+      },
+      dimensions: 1536,
+      performSetup: true,
+    });
+    pgVectorStore.setCollection(vectorStoreName);
+    return pgVectorStore;
   }
 
   private async createIndex(
-    _vectorStore?: any,
+    vectorStore: PGVectorStore,
   ): Promise<VectorStoreIndex> {
-    // 使用默认的内存存储
-    return VectorStoreIndex.fromDocuments([]);
+    return await VectorStoreIndex.fromVectorStore(vectorStore);
   }
 
   async getAllKnowledgeBases(userId?: string) {
@@ -148,10 +171,14 @@ export class KnowledgeBaseService {
 
     await this.prisma.knowledgeBase.delete({ where: { id: knowledgeBaseId } });
 
-    const vectorStore = await this.createVectorStore(
-      knowledgeBase.vectorStoreName,
-    );
-    await vectorStore.clearCollection();
+    try {
+      const vectorStore = await this.createVectorStore(
+        knowledgeBase.vectorStoreName,
+      );
+      await vectorStore.clearCollection();
+    } catch (error: any) {
+      this.logger.error(`Failed to clear vector store: ${error?.message || error}`);
+    }
   }
 
   async uploadFile(
@@ -218,6 +245,11 @@ export class KnowledgeBaseService {
     if (!file || file.knowledgeBaseId !== knowledgeBaseId) {
       throw new NotFoundException(`File not found`);
     }
+
+    await this.prisma.file.update({
+      where: { id: fileId },
+      data: { status: FileStatus.PROCESSING },
+    });
 
     try {
       const reader = new LlamaParseReader({
@@ -299,38 +331,11 @@ export class KnowledgeBaseService {
 
         // 3. 删除向量存储中的数据
         try {
-          const vectorStore = await this.createVectorStore(
+          await this.prisma.$executeRawUnsafe(
+            `DELETE FROM public.llamaindex_embedding WHERE collection = $1 AND metadata->>'ref_doc_id' = $2`,
             knowledgeBase.vectorStoreName,
+            fileId,
           );
-
-          // 检查 vectorStore 是否存在且有 delete 方法
-          if (vectorStore) {
-            const index = await this.createIndex(vectorStore);
-
-            // 尝试删除向量存储中的文档
-            try {
-              await vectorStore.delete(fileId);
-            } catch (vectorError: any) {
-              this.logger.warn(
-                `Failed to delete from vector store: ${vectorError?.message || vectorError}`,
-              );
-            }
-
-            // 尝试删除索引中的引用文档
-            try {
-              if (index && typeof index.deleteRefDoc === 'function') {
-                await index.deleteRefDoc(fileId);
-              }
-            } catch (indexError: any) {
-              this.logger.warn(
-                `Failed to delete from index: ${indexError?.message || indexError}`,
-              );
-            }
-          } else {
-            this.logger.warn(
-              `Vector store for ${knowledgeBase.vectorStoreName} does not support deletion or is not properly initialized`,
-            );
-          }
         } catch (error: any) {
           // 记录错误但不中断流程
           this.logger.error(
@@ -364,6 +369,10 @@ export class KnowledgeBaseService {
   }
 
   async chat(knowledgeBaseId: string, message: string) {
+    const startTime = Date.now();
+    this.logger.log(`[Query] Knowledge base: ${knowledgeBaseId}`);
+    this.logger.log(`[Query] Question: ${message}`);
+
     const index = await this.getIndex(knowledgeBaseId);
     const queryEngine = index.asQueryEngine({
       similarityTopK: 10,
@@ -378,6 +387,13 @@ export class KnowledgeBaseService {
         metadata: node.node?.metadata || {},
       }))
       .sort((a, b) => b.score - a.score);
+
+    const elapsed = Date.now() - startTime;
+    this.logger.log(`[Query] Matched ${filteredSources.length} sources (${elapsed}ms)`);
+    filteredSources.slice(0, 3).forEach((src, i) => {
+      this.logger.log(`[Query] Source #${i + 1} (score: ${src.score.toFixed(4)}): ${src.content.substring(0, 100)}...`);
+    });
+    this.logger.log(`[Query] Answer: ${response.toString().substring(0, 200)}${response.toString().length > 200 ? '...' : ''}`);
 
     return {
       answer: response.toString(),

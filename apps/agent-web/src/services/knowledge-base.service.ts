@@ -32,7 +32,16 @@ export const knowledgeBaseQueryOptions = {
 
 // Hooks
 export const useKnowledgeBases = () => {
-  return useQuery(knowledgeBaseQueryOptions.list());
+  const query = useQuery(knowledgeBaseQueryOptions.list());
+  const hasProcessing = query.data?.some((kb: any) =>
+    kb.files?.some((f: any) => f.status === 'PROCESSING'),
+  );
+  useQuery({
+    ...knowledgeBaseQueryOptions.list(),
+    refetchInterval: hasProcessing ? 3000 : false,
+    enabled: hasProcessing,
+  });
+  return query;
 };
 
 export const useKnowledgeBase = (id: string) => {
@@ -130,7 +139,8 @@ export const useUploadFileToKnowledgeBase = () => {
     mutationFn: ({ knowledgeBaseId, file }: { knowledgeBaseId: string; file: File }) =>
       apiClient.uploadFileToKnowledgeBase(knowledgeBaseId, file),
     onSuccess: (_, { knowledgeBaseId }) => {
-      // 使知识库详情和文件列表失效
+      // 使知识库列表、详情和文件列表失效
+      queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBases({}) });
       queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBase(knowledgeBaseId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBaseFiles(knowledgeBaseId) });
     },
@@ -143,8 +153,30 @@ export const useTrainKnowledgeBaseFile = () => {
   return useMutation({
     mutationFn: ({ knowledgeBaseId, fileId }: { knowledgeBaseId: string; fileId: string }) =>
       apiClient.trainKnowledgeBaseFile(knowledgeBaseId, fileId),
-    onSuccess: (_, { knowledgeBaseId }) => {
-      // 使知识库详情和文件列表失效
+    onMutate: async ({ knowledgeBaseId, fileId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.knowledgeBases({}) });
+      const previous = queryClient.getQueryData(queryKeys.knowledgeBases({}));
+      queryClient.setQueryData(queryKeys.knowledgeBases({}), (old: any) => {
+        if (!old) return old;
+        return old.map((kb: any) => {
+          if (kb.id !== knowledgeBaseId) return kb;
+          return {
+            ...kb,
+            files: kb.files?.map((f: any) =>
+              f.id === fileId ? { ...f, status: 'PROCESSING' } : f,
+            ),
+          };
+        });
+      });
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.knowledgeBases({}), context.previous);
+      }
+    },
+    onSettled: (_, __, { knowledgeBaseId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBases({}) });
       queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBase(knowledgeBaseId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBaseFiles(knowledgeBaseId) });
     },
@@ -158,7 +190,8 @@ export const useDeleteKnowledgeBaseFile = () => {
     mutationFn: ({ knowledgeBaseId, fileId }: { knowledgeBaseId: string; fileId: string }) =>
       apiClient.deleteKnowledgeBaseFile(knowledgeBaseId, fileId),
     onSuccess: (_, { knowledgeBaseId }) => {
-      // 使知识库详情和文件列表失效
+      // 使知识库列表、详情和文件列表失效
+      queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBases({}) });
       queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBase(knowledgeBaseId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeBaseFiles(knowledgeBaseId) });
     },

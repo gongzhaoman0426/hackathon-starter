@@ -21,7 +21,7 @@ import type { CreateKnowledgeBaseDto, KnowledgeBaseFile } from '../types'
 const defaultStatusCfg = { label: '待处理', icon: Clock, color: 'text-amber-500', badgeVariant: 'outline' as const }
 
 const fileStatusConfig = {
-  COMPLETED: { label: '已完成', icon: CheckCircle2, color: 'text-emerald-500', badgeVariant: 'default' as const },
+  PROCESSED: { label: '已完成', icon: CheckCircle2, color: 'text-emerald-500', badgeVariant: 'default' as const },
   PROCESSING: { label: '处理中', icon: Loader2, color: 'text-blue-500', badgeVariant: 'secondary' as const },
   FAILED: { label: '失败', icon: AlertCircle, color: 'text-destructive', badgeVariant: 'destructive' as const },
   PENDING: { label: '待处理', icon: Clock, color: 'text-amber-500', badgeVariant: 'outline' as const },
@@ -111,7 +111,7 @@ export function KnowledgeBases() {
 
   const totalFiles = knowledgeBases.reduce((sum, kb) => sum + (kb.files?.length || 0), 0)
   const completedFiles = knowledgeBases.reduce(
-    (sum, kb) => sum + (kb.files?.filter((f) => f.status === 'COMPLETED').length || 0),
+    (sum, kb) => sum + (kb.files?.filter((f) => f.status === 'PROCESSED').length || 0),
     0
   )
 
@@ -266,7 +266,7 @@ export function KnowledgeBases() {
                             <span className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</span>
                           </div>
                           <div className="flex items-center gap-0.5 shrink-0">
-                            {file.status === 'PENDING' && (
+                            {(file.status === 'PENDING' || file.status === 'FAILED') && (
                               <Button
                                 size="sm"
                                 variant="ghost"

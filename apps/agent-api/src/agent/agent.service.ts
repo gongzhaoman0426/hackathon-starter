@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { ToolsService } from '../tool/tools.service';
 
@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AgentService {
+  private readonly logger = new Logger(AgentService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly llamaIndexService: LlamaindexService,
@@ -218,11 +220,16 @@ export class AgentService {
   }
 
   async chatWithAgent(agentId: string, chatDto: ChatWithAgentDto) {
+    const startTime = Date.now();
+
     // 获取智能体信息
     const agent = await this.findOne(agentId);
+    this.logger.log(`[Chat] Agent: ${agent.name} (${agentId})`);
+    this.logger.log(`[Chat] User message: ${chatDto.message}`);
 
     // 获取智能体的工具
     const tools = await this.toolsService.getAgentTools(agentId);
+    this.logger.log(`[Chat] Available tools: ${tools.map((t: any) => t.metadata?.name || t.name).join(', ')}`);
 
     // 创建智能体实例
     const agentInstance = await this.llamaIndexService.createAgent(
@@ -232,6 +239,8 @@ export class AgentService {
 
     // 执行对话
     const response = await agentInstance.run(chatDto.message);
+    const elapsed = Date.now() - startTime;
+    this.logger.log(`[Chat] Response (${elapsed}ms): ${response.data.result.substring(0, 200)}${response.data.result.length > 200 ? '...' : ''}`);
 
     return {
       agentId,

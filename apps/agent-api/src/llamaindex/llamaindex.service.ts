@@ -14,6 +14,7 @@ let llamaindexModules: any = null;
 @Injectable()
 export class LlamaindexService implements OnModuleInit {
   private readonly logger = new Logger(LlamaindexService.name);
+  private defaultLlm: OpenAI | null = null;
 
   constructor() {}
 
@@ -39,7 +40,7 @@ export class LlamaindexService implements OnModuleInit {
   async onModuleInit() {
     const { openai, OpenAIEmbedding, Settings } = await this.getLlamaindexModules();
     try {
-      Settings.llm = openai({
+      this.defaultLlm = openai({
         model: 'gpt-4.1',
         temperature: 0.7,
         apiKey: process.env.OPENAI_API_KEY,
@@ -48,6 +49,7 @@ export class LlamaindexService implements OnModuleInit {
           httpAgent,
         },
       });
+      Settings.llm = this.defaultLlm;
       Settings.embedModel = new OpenAIEmbedding({
         model: 'text-embedding-3-small',
         dimensions: 1536,
@@ -64,7 +66,7 @@ export class LlamaindexService implements OnModuleInit {
     return agent({
       tools,
       systemPrompt: prompt,
-      llm: llm,
+      llm: llm || this.defaultLlm,
       verbose: false,
     });
   }

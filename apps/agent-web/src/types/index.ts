@@ -111,7 +111,7 @@ export interface KnowledgeBaseFile {
   id: string;
   name: string;
   path: string;
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  status: 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
   knowledgeBaseId: string;
   createdAt: string;
   updatedAt: string;

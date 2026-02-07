@@ -20,6 +20,8 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
       // 获取智能体可访问的知识库列表工具
       const listKnowledgeBasesTool = FunctionTool.from(
         async () => {
+          const startTime = Date.now();
+          this.logger.log('[Tool:listAgentKnowledgeBases] Called, agentId=' + this.settings.agentId);
           try {
             const agentKnowledgeBases = await this.knowledgeBaseService.getAgentKnowledgeBases(
               this.settings.agentId as string,
@@ -29,10 +31,11 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
               name: akb.knowledgeBase.name,
               description: akb.knowledgeBase.description,
             }));
-            this.logger.log('Available knowledge bases:', JSON.stringify(result, null, 2));
+            const elapsed = Date.now() - startTime;
+            this.logger.log(`[Tool:listAgentKnowledgeBases] Found ${result.length} knowledge bases (${elapsed}ms)`);
             return JSON.stringify(result, null, 2);
           } catch (error: any) {
-            this.logger.error('Failed to list knowledge bases:', error);
+            this.logger.error(`[Tool:listAgentKnowledgeBases] Error: ${error.message}`, error.stack);
             return JSON.stringify({ error: error.message }, null, 2);
           }
         },
@@ -50,6 +53,8 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
       // 知识库查询工具
       const queryKnowledgeBaseTool = FunctionTool.from(
         async ({ knowledgeBaseId, query }: { knowledgeBaseId: string; query: string }) => {
+          const startTime = Date.now();
+          this.logger.log(`[Tool:queryKnowledgeBase] Called, knowledgeBaseId=${knowledgeBaseId}, query="${query}"`);
           try {
             // 验证智能体是否有权限访问该知识库
             const agentKnowledgeBases = await this.knowledgeBaseService.getAgentKnowledgeBases(
@@ -58,15 +63,16 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
             const hasAccess = agentKnowledgeBases.some((akb: any) => akb.knowledgeBase.id === knowledgeBaseId);
 
             if (!hasAccess) {
+              this.logger.warn(`[Tool:queryKnowledgeBase] Access denied for agent ${this.settings.agentId} to knowledge base ${knowledgeBaseId}`);
               return JSON.stringify({ error: '智能体无权限访问该知识库' }, null, 2);
             }
 
             const answer = await this.knowledgeBaseService.chat(knowledgeBaseId, query);
-            this.logger.log('Query:', query);
-            this.logger.log('Answer:', JSON.stringify(answer, null, 2));
+            const elapsed = Date.now() - startTime;
+            this.logger.log(`[Tool:queryKnowledgeBase] Completed (${elapsed}ms), sources: ${answer.sources?.length || 0}`);
             return JSON.stringify(answer, null, 2);
           } catch (error: any) {
-            this.logger.error('Failed to query knowledge base:', error);
+            this.logger.error(`[Tool:queryKnowledgeBase] Error: ${error.message}`, error.stack);
             return JSON.stringify({ error: error.message }, null, 2);
           }
         },
