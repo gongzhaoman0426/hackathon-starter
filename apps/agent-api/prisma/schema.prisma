@@ -16,6 +16,7 @@ model Agent {
   agentToolkits        AgentToolkit[]
   agentTools           AgentTool[]
   agentKnowledgeBases  AgentKnowledgeBase[]
+  agentWorkflows       AgentWorkflow[]
   workflowAgents       WorkflowAgent[]
   createdById          String?
   isWorkflowGenerated  Boolean                @default(false)
@@ -91,6 +92,7 @@ model WorkFlow {
 
   // 工作流关联的智能体
   workflowAgents WorkflowAgent[]
+  agentWorkflows AgentWorkflow[]
 
   @@map("workflows")
 }
@@ -135,6 +137,19 @@ model AgentKnowledgeBase {
 
   @@unique([agentId, knowledgeBaseId])
   @@map("agent_knowledge_bases")
+}
+
+model AgentWorkflow {
+  id         String   @id @default(cuid())
+  agent      Agent    @relation(fields: [agentId], references: [id])
+  agentId    String
+  workflow   WorkFlow @relation(fields: [workflowId], references: [id])
+  workflowId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([agentId, workflowId])
+  @@map("agent_workflows")
 }
 
 model File {

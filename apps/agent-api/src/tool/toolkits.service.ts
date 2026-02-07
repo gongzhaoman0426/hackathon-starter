@@ -77,6 +77,7 @@ export class ToolkitsService implements OnModuleInit {
       });
 
       const tools = await toolkit.getTools();
+      const syncedToolNames: string[] = [];
       for (const tool of tools) {
         await this.prismaService.tool.upsert({
           where: { name: tool.metadata.name },
@@ -92,7 +93,31 @@ export class ToolkitsService implements OnModuleInit {
             toolkitId: toolkit.id,
           },
         });
+        syncedToolNames.push(tool.metadata.name);
       }
+
+      // Remove stale tools that no longer exist in this toolkit
+      const staleTools = await this.prismaService.tool.findMany({
+        where: {
+          toolkitId: toolkit.id,
+          ...(syncedToolNames.length > 0
+            ? { name: { notIn: syncedToolNames } }
+            : {}),
+        },
+      });
+      if (staleTools.length > 0) {
+        // Delete agent_tools references first to avoid FK constraint errors
+        await this.prismaService.agentTool.deleteMany({
+          where: { toolId: { in: staleTools.map((t) => t.id) } },
+        });
+        await this.prismaService.tool.deleteMany({
+          where: { id: { in: staleTools.map((t) => t.id) } },
+        });
+        this.logger.warn(
+          `Removed stale tools from toolkit ${toolkit.id}: ${staleTools.map((t) => t.name).join(', ')}`,
+        );
+      }
+
       this.logger.log(`Synced toolkit to database: ${toolkit.id}`);
     }
   }

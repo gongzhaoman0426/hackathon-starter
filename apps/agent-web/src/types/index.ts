@@ -10,6 +10,7 @@ export interface Agent {
   deleted: boolean;
   agentToolkits?: AgentToolkit[];
   agentKnowledgeBases?: AgentKnowledgeBase[];
+  agentWorkflows?: AgentWorkflow[];
 }
 
 export interface Toolkit {
@@ -44,6 +45,13 @@ export interface AgentKnowledgeBase {
   knowledgeBase: KnowledgeBase;
 }
 
+export interface AgentWorkflow {
+  id: string;
+  agentId: string;
+  workflowId: string;
+  workflow: Workflow;
+}
+
 export interface Workflow {
   id: string;
   name: string;
@@ -73,6 +81,7 @@ export interface CreateAgentDto {
   options?: any;
   toolkits?: ToolkitConfigDto[];
   knowledgeBases?: string[];
+  workflows?: string[];
 }
 
 export interface ChatWithAgentDto {

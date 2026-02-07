@@ -38,6 +38,11 @@ export class CreateAgentDto {
   @IsOptional()
   @IsString({ each: true })
   knowledgeBases?: string[];
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  workflows?: string[];
 }
 
 export class UpdateAgentDto {
@@ -67,6 +72,11 @@ export class UpdateAgentDto {
   @IsOptional()
   @IsString({ each: true })
   knowledgeBases?: string[];
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  workflows?: string[];
 }
 
 export class ChatWithAgentDto {

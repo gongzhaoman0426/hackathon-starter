@@ -37,6 +37,11 @@ export class AgentService {
             knowledgeBase: true,
           },
         },
+        agentWorkflows: {
+          include: {
+            workflow: true,
+          },
+        },
       },
     });
   }
@@ -62,6 +67,11 @@ export class AgentService {
         agentKnowledgeBases: {
           include: {
             knowledgeBase: true,
+          },
+        },
+        agentWorkflows: {
+          include: {
+            workflow: true,
           },
         },
       },
@@ -90,6 +100,9 @@ export class AgentService {
 
     // 处理知识库分配
     await this.assignKnowledgeBasesToAgent(agent.id, createAgentDto);
+
+    // 处理工作流分配
+    await this.assignWorkflowsToAgent(agent.id, createAgentDto);
 
     return agent;
   }
@@ -167,6 +180,31 @@ export class AgentService {
     }
   }
 
+  private async assignWorkflowsToAgent(agentId: string, dto: CreateAgentDto | UpdateAgentDto) {
+    if (dto.workflows && dto.workflows.length > 0) {
+      for (const workflowId of dto.workflows) {
+        try {
+          const workflow = await this.prisma.workFlow.findUnique({
+            where: { id: workflowId },
+          });
+
+          if (workflow) {
+            await this.prisma.agentWorkflow.create({
+              data: {
+                agentId: agentId,
+                workflowId: workflowId,
+              },
+            });
+          } else {
+            console.warn(`Warning: Workflow ${workflowId} not found, skipping...`);
+          }
+        } catch (error) {
+          console.error(`Error assigning workflow ${workflowId} to agent:`, error);
+        }
+      }
+    }
+  }
+
   async update(id: string, updateAgentDto: UpdateAgentDto) {
     await this.findOne(id);
 
@@ -195,6 +233,14 @@ export class AgentService {
         where: { agentId: id },
       });
       await this.assignKnowledgeBasesToAgent(id, updateAgentDto);
+    }
+
+    // 如果提供了工作流配置，则更新工作流分配
+    if (updateAgentDto.workflows) {
+      await this.prisma.agentWorkflow.deleteMany({
+        where: { agentId: id },
+      });
+      await this.assignWorkflowsToAgent(id, updateAgentDto);
     }
 
     return this.findOne(id);

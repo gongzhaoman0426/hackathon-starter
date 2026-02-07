@@ -9,18 +9,20 @@ import { Label } from '@workspace/ui/components/label'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { Separator } from '@workspace/ui/components/separator'
 import { cn } from '@workspace/ui/lib/utils'
-import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles, ChevronRight, ChevronLeft, Check, Pencil } from 'lucide-react'
+import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles, ChevronRight, ChevronLeft, Check, Pencil, GitBranch } from 'lucide-react'
 import { useAgents, useCreateAgent, useDeleteAgent, useUpdateAgent } from '../services/agent.service'
 import { useToolkits } from '../services/toolkit.service'
 import { useKnowledgeBases } from '../services/knowledge-base.service'
+import { useWorkflows } from '../services/workflow.service'
 import { useConfirmDialog } from '../hooks/use-confirm-dialog'
 import type { CreateAgentDto } from '../types'
 
 const STEPS = [
   { id: 0, title: '基本信息', description: '名称、描述和提示词' },
   { id: 1, title: '工具包', description: '选择功能工具' },
-  { id: 2, title: '知识库', description: '关联知识文档' },
-  { id: 3, title: '确认创建', description: '检查并提交' },
+  { id: 2, title: '工作流', description: '绑定可用工作流' },
+  { id: 3, title: '知识库', description: '关联知识文档' },
+  { id: 4, title: '确认创建', description: '检查并提交' },
 ]
 
 const initialFormData: CreateAgentDto = {
@@ -29,13 +31,15 @@ const initialFormData: CreateAgentDto = {
   prompt: '',
   options: {},
   toolkits: [],
-  knowledgeBases: []
+  knowledgeBases: [],
+  workflows: []
 }
 
 export function Agents() {
   const { data: agents = [], isLoading: agentsLoading } = useAgents()
   const { data: toolkits = [], isLoading: toolkitsLoading } = useToolkits()
   const { data: knowledgeBases = [], isLoading: kbLoading } = useKnowledgeBases()
+  const { data: workflows = [], isLoading: wfLoading } = useWorkflows()
   const createAgentMutation = useCreateAgent()
   const updateAgentMutation = useUpdateAgent()
   const deleteAgentMutation = useDeleteAgent()
@@ -46,7 +50,7 @@ export function Agents() {
   const [step, setStep] = useState(0)
   const [formData, setFormData] = useState<CreateAgentDto>({ ...initialFormData })
 
-  const loading = agentsLoading || toolkitsLoading || kbLoading
+  const loading = agentsLoading || toolkitsLoading || kbLoading || wfLoading
 
   const canGoNext = () => {
     if (step === 0) return !!(formData.name?.trim() && formData.prompt?.trim())
@@ -97,6 +101,7 @@ export function Agents() {
       options: agent.options || {},
       toolkits: agent.agentToolkits?.map((at: any) => ({ toolkitId: at.toolkit.id, settings: at.settings })) || [],
       knowledgeBases: agent.agentKnowledgeBases?.map((akb: any) => akb.knowledgeBase.id) || [],
+      workflows: agent.agentWorkflows?.map((aw: any) => aw.workflow.id) || [],
     })
     setStep(0)
     setCreateDialogOpen(true)
@@ -136,6 +141,10 @@ export function Agents() {
   const selectedKbNames = knowledgeBases
     .filter((kb: any) => formData.knowledgeBases?.includes(kb.id))
     .map((kb: any) => kb.name)
+
+  const selectedWorkflowNames = (workflows as any[])
+    .filter((wf: any) => formData.workflows?.includes(wf.id))
+    .map((wf: any) => wf.name)
 
   if (loading) {
     return (
@@ -259,6 +268,16 @@ export function Agents() {
                       ))}
                     </div>
                   )}
+                  {agent.agentWorkflows && agent.agentWorkflows.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <GitBranch className="h-3 w-3 text-muted-foreground shrink-0" />
+                      {agent.agentWorkflows.map((aw: any) => (
+                        <Badge key={aw.id} className="text-[10px] px-1.5 py-0 h-5 bg-violet-500/10 text-violet-700 border-violet-500/20 hover:bg-violet-500/20" variant="outline">
+                          {aw.workflow.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
@@ -331,15 +350,15 @@ export function Agents() {
 
           {/* Stepper Indicator */}
           <div className="px-6 pb-4">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               {STEPS.map((s, i) => (
-                <div key={s.id} className="flex items-center flex-1">
+                <div key={s.id} className="flex items-center flex-1 min-w-0">
                   <button
                     type="button"
                     onClick={() => { if (i < step || (i > step && canGoNext())) setStep(i) }}
                     disabled={i > step && !canGoNext()}
                     className={cn(
-                      'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors w-full',
+                      'flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-xs transition-colors w-full min-w-0',
                       i === step
                         ? 'bg-primary/10 text-primary font-medium'
                         : i < step
@@ -361,7 +380,7 @@ export function Agents() {
                   </button>
                   {i < STEPS.length - 1 && (
                     <div className={cn(
-                      'h-px w-4 shrink-0 mx-0.5',
+                      'h-px w-3 shrink-0',
                       i < step ? 'bg-primary/30' : 'bg-border'
                     )} />
                   )}
@@ -491,8 +510,74 @@ export function Agents() {
               </div>
             )}
 
-            {/* Step 2: 知识库 */}
+            {/* Step 2: 工作流 */}
             {step === 2 && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    绑定工作流让智能体可以发现和执行自动化流程。此步骤可选。
+                  </p>
+                </div>
+                {(workflows as any[]).length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {(workflows as any[]).map((wf: any) => {
+                      const isSelected = formData.workflows?.includes(wf.id)
+                      return (
+                        <label
+                          key={wf.id}
+                          htmlFor={`wf-${wf.id}`}
+                          className={cn(
+                            'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all',
+                            isSelected
+                              ? 'border-violet-500/40 bg-violet-500/5'
+                              : 'border-border hover:border-violet-500/20 hover:bg-muted/30'
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            id={`wf-${wf.id}`}
+                            checked={!!isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  workflows: [...(formData.workflows || []), wf.id]
+                                })
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  workflows: formData.workflows?.filter((id: string) => id !== wf.id) || []
+                                })
+                              }
+                            }}
+                            className="mt-0.5 accent-violet-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{wf.name}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                              {wf.description || '暂无描述'}
+                            </p>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <GitBranch className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">暂无可用的工作流</p>
+                    <p className="text-xs mt-1">
+                      前往 <Link to="/manage/workflows" className="text-primary hover:underline">工作流管理</Link> 创建
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: 知识库 */}
+            {step === 3 && (
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-muted-foreground">
@@ -562,8 +647,8 @@ export function Agents() {
               </div>
             )}
 
-            {/* Step 3: 确认 */}
-            {step === 3 && (
+            {/* Step 4: 确认 */}
+            {step === 4 && (
               <div className="space-y-5">
                 <p className="text-sm text-muted-foreground">请确认以下配置信息，然后点击创建。</p>
 
@@ -605,6 +690,26 @@ export function Agents() {
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">未选择工具包</p>
+                    )}
+                  </div>
+
+                  {/* 工作流 */}
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-violet-500" />
+                      <span className="text-sm font-medium">工作流</span>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+                        {selectedWorkflowNames.length} 个
+                      </Badge>
+                    </div>
+                    {selectedWorkflowNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedWorkflowNames.map((name) => (
+                          <Badge key={name} variant="outline" className="text-xs">{name}</Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">未选择工作流</p>
                     )}
                   </div>
 

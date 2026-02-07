@@ -5,6 +5,7 @@ import { CommonToolkit } from './toolkits/common-toolkit';
 import { ToolExplorerToolkit } from './toolkits/tool-explorer-toolkit';
 import { KnowledgeBaseToolkit } from './toolkits/knowledge-base-toolkit';
 import { KnowledgeBaseExplorerToolkit } from './toolkits/knowledge-base-explorer-toolkit';
+import { WorkflowToolkit } from './toolkits/workflow-toolkit';
 import { ToolkitsController } from './toolkits.controller';
 import { ToolkitsService } from './toolkits.service';
 import { ToolsService } from './tools.service';
@@ -21,7 +22,8 @@ import { PrismaModule } from '../prisma/prisma.module';
     CommonToolkit,
     ToolExplorerToolkit,
     KnowledgeBaseToolkit,
-    KnowledgeBaseExplorerToolkit
+    KnowledgeBaseExplorerToolkit,
+    WorkflowToolkit,
   ],
   exports: [ToolsService, ToolkitsService],
 })
