@@ -1,70 +1,217 @@
-# 🚀 Hackathon Starter - Monorepo Template
+# Hackathon Starter - AI Agent Platform
 
-一个功能完整的黑客马拉松项目模板，基于现代化的 Monorepo 架构，支持多种技术栈，开箱即用的 Docker 容器化方案。
+基于 Monorepo 架构的 AI 智能体平台，支持智能体管理、工作流编排、知识库集成和工具扩展。
 
-## 📁 项目结构
+## 项目结构
 
 ```
 hackathon-starter/
-├── apps/                          # 应用目录
-│   ├── agent-api/                 # NestJS API 服务
-│   │   ├── src/                   # 源代码
-│   │   ├── prisma/                # 数据库模型
-│   │   ├── Dockerfile             # Docker 配置
-│   │   └── package.json
-│   ├── hono/                      # Hono API 服务
-│   │   ├── src/                   # 源代码
-│   │   ├── Dockerfile             # Docker 配置
-│   │   └── package.json
-│   ├── next/                      # Next.js 前端应用
-│   │   ├── src/                   # 源代码
-│   │   ├── Dockerfile             # Docker 配置
-│   │   └── package.json
-│   └── vite/                      # Vite + React 前端应用
-│       ├── src/                   # 源代码
-│       ├── Dockerfile             # Docker 配置
-│       └── package.json
-├── packages/                      # 共享包目录
-│   ├── ui/                        # UI 组件库
-│   ├── eslint-config/             # ESLint 配置
-│   └── typescript-config/         # TypeScript 配置
-├── scripts/                       # 管理脚本
-│   ├── dev.sh                     # 开发环境启动
-│   ├── prod.sh                    # 生产环境部署
-│   ├── status.sh                  # 查看服务状态
-│   └── stop.sh                    # 停止服务
-├── docker-compose.yml             # 本地开发环境配置
-├── docker-compose.prod.yml        # 生产环境配置
-├── .env.example                   # 环境变量模板
-├── turbo.json                     # Turborepo 配置
-├── pnpm-workspace.yaml           # PNPM 工作空间配置
-└── package.json                   # 根包配置
+├── apps/
+│   ├── agent-api/                    # NestJS 后端服务
+│   │   ├── prisma/                   # 数据库模型与迁移
+│   │   ├── src/
+│   │   │   ├── agent/                # 智能体模块（CRUD、对话、标题生成）
+│   │   │   ├── tool/                 # 工具与工具包模块
+│   │   │   │   ├── toolkits/         # 内置工具包实现
+│   │   │   │   ├── toolkits.decorator.ts
+│   │   │   │   └── toolkits.service.ts  # 装饰器发现 + DB 同步
+│   │   │   ├── workflow/             # 工作流模块
+│   │   │   │   ├── workflows/        # 代码定义的内置工作流
+│   │   │   │   ├── workflow.decorator.ts
+│   │   │   │   ├── base-workflow.ts
+│   │   │   │   ├── workflow-discovery.service.ts  # 装饰器发现 + DB 同步
+│   │   │   │   ├── workflow.service.ts   # DSL 编译、执行、自然语言生成
+│   │   │   │   ├── event-bus.ts          # RxJS 事件总线
+│   │   │   │   └── workflow.ts           # 工作流执行引擎
+│   │   │   ├── knowledge-base/       # 知识库模块（向量检索）
+│   │   │   ├── llamaindex/           # LlamaIndex + OpenAI 集成
+│   │   │   └── prisma/               # Prisma 数据库服务
+│   │   └── Dockerfile
+│   └── agent-web/                    # React 前端应用
+│       ├── src/
+│       │   ├── components/chat/      # 聊天界面组件
+│       │   ├── pages/                # 管理页面（智能体、工作流、知识库、工具包）
+│       │   ├── services/             # React Query API 封装
+│       │   ├── hooks/                # 自定义 Hooks
+│       │   ├── lib/                  # API 客户端、聊天存储、查询配置
+│       │   └── types/                # TypeScript 类型定义
+│       └── Dockerfile
+├── packages/
+│   ├── ui/                           # 共享 UI 组件库（Radix UI + Tailwind）
+│   ├── eslint-config/                # 共享 ESLint 配置
+│   └── typescript-config/            # 共享 TypeScript 配置
+├── docker-compose.yml                # 开发环境（PostgreSQL + Redis + 应用）
+├── docker-compose.prod.yml           # 生产环境
+└── turbo.json                        # Turborepo 配置
 ```
 
-## 🛠 技术栈
+## 技术栈
 
-### 后端服务
+| 层级 | 技术 |
+|------|------|
+| 后端框架 | NestJS 10 + TypeScript |
+| 数据库 | PostgreSQL（pgvector）+ Prisma ORM |
+| 缓存 | Redis |
+| AI 集成 | LlamaIndex + OpenAI GPT-4.1 |
+| 前端框架 | React 19 + Vite 6 + React Router 7 |
+| 状态管理 | React Query (TanStack Query) |
+| UI 组件 | Radix UI + Tailwind CSS 4 |
+| Monorepo | Turborepo + PNPM Workspaces |
+| 容器化 | Docker + Docker Compose |
 
-- **API Agent**: NestJS + Prisma + PostgreSQL + Redis
-- **Hono API**: Hono.js (轻量级 Web 框架)
+## 核心功能
 
-### 前端应用
+### 智能体管理
 
-- **Next.js App**: React 19 + Next.js 15 + Tailwind CSS
-- **Vite App**: React 19 + Vite + Tailwind CSS
+- 创建、编辑、删除智能体
+- 为智能体分配工具包、知识库、工作流
+- 对话聊天，首次对话自动调用 LLM 生成会话标题
 
-### 开发工具
+### 工具包系统
 
-- **Monorepo**: Turborepo + PNPM Workspaces
-- **代码质量**: ESLint + Prettier + TypeScript
-- **容器化**: Docker + Docker Compose (支持热更新)
+通过 `@toolkitId()` 装饰器在代码中定义工具包，应用启动时自动发现并同步到数据库。
 
-### 数据库
+内置工具包：
 
-- **PostgreSQL**: 主数据库
-- **Redis**: 缓存服务
+| ID | 名称 | 功能 |
+|----|------|------|
+| `common-toolkit-01` | Common Tools | 时间查询（getCurrentTime） |
+| `knowledge-base-toolkit-01` | Knowledge Base Toolkit | 知识库查询 |
+| `knowledge-base-explorer-toolkit-01` | KB Explorer Toolkit | 知识库发现（DSL 生成用） |
+| `tool-explorer-toolkit-01` | Tool Explorer Toolkit | 工具发现（DSL 生成用） |
+| `workflow-toolkit-01` | Workflow Toolkit | 工作流执行（动态生成工具） |
 
-## 🚀 快速开始
+### 工作流编排
+
+支持两种创建方式：
+
+1. **代码定义（内置）**：通过 `@workflowId()` 装饰器 + `BaseWorkflow` 抽象类在后端代码中定义，启动时自动同步到数据库，前端显示「内置工作流」标签，不可删除
+2. **API 创建**：通过前端自然语言描述或手动填写 JSON DSL 创建
+
+工作流基于事件驱动架构：
+- `EventBus`：RxJS 事件发布/订阅
+- `WorkflowContextStorage`：AsyncLocalStorage 上下文管理
+- DSL 编译：动态函数生成，支持工具调用和智能体调用
+
+内置工作流示例：
+
+| ID | 名称 | 功能 |
+|----|------|------|
+| `time-query-workflow-01` | 智能聊天工作流 | 具备时间查询能力的自动回复机器人 |
+
+#### 代码定义工作流示例
+
+```typescript
+// apps/agent-api/src/workflow/workflows/my-workflow.ts
+import { workflowId } from '../workflow.decorator';
+import { BaseWorkflow, WorkflowDsl } from '../base-workflow';
+
+@workflowId('my-workflow-01')
+export class MyWorkflow extends BaseWorkflow {
+  readonly name = '我的工作流';
+  readonly description = '示例工作流';
+
+  getDsl(): WorkflowDsl {
+    return {
+      id: 'myWorkflow',
+      name: this.name,
+      description: this.description,
+      version: 'v1',
+      tools: ['getCurrentTime'],
+      agents: [
+        {
+          name: 'MyAgent',
+          description: '示例智能体',
+          prompt: '你是一个助手。',
+          output: { result: 'string' },
+          tools: ['getCurrentTime'],
+        },
+      ],
+      events: [
+        { type: 'WORKFLOW_START', data: { input: 'string' } },
+        { type: 'WORKFLOW_STOP', data: { result: 'string' } },
+      ],
+      steps: [
+        {
+          event: 'WORKFLOW_START',
+          handle: `async (event, context) => {
+            const response = await MyAgent.run(event.data.input);
+            return { type: 'WORKFLOW_STOP', data: { result: response.data.result } };
+          }`,
+        },
+      ],
+    };
+  }
+}
+```
+
+然后在 `workflow.module.ts` 的 `providers` 中注册 `MyWorkflow`，重启即可。
+
+### 知识库
+
+- 创建知识库，上传文件，自动向量化（text-embedding-3-small）
+- 智能体可关联知识库进行 RAG 检索
+- 工作流 DSL 生成时自动发现可用知识库
+
+## 数据模型
+
+```
+Agent ──┬── AgentToolkit ── Toolkit ── Tool
+        ├── AgentKnowledgeBase ── KnowledgeBase ── File
+        ├── AgentWorkflow ── WorkFlow ── WorkflowAgent
+        └── AgentTool ── Tool
+```
+
+- `WorkFlow.source`：`"api"`（前端创建）或 `"code"`（代码定义）
+- `Agent.isWorkflowGenerated`：标记工作流自动生成的智能体
+
+## API 端点
+
+### 智能体
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/agents` | 获取所有智能体 |
+| GET | `/api/agents/:id` | 获取单个智能体 |
+| POST | `/api/agents` | 创建智能体 |
+| PUT | `/api/agents/:id` | 更新智能体 |
+| DELETE | `/api/agents/:id` | 删除智能体 |
+| POST | `/api/agents/:id/chat` | 与智能体对话（支持 `generateTitle`） |
+| GET | `/api/agents/:id/toolkits` | 获取智能体工具包 |
+
+### 工作流
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/workflows` | 获取所有工作流 |
+| GET | `/api/workflows/:id` | 获取单个工作流 |
+| POST | `/api/workflows` | 创建工作流 |
+| DELETE | `/api/workflows/:id` | 删除工作流（内置工作流禁止删除） |
+| POST | `/api/workflows/:id/execute` | 执行工作流 |
+| POST | `/api/workflows/generate-dsl` | 自然语言生成 DSL |
+| GET | `/api/workflows/:id/agents` | 获取工作流智能体 |
+| PUT | `/api/workflows/:id/agents/:name` | 更新工作流智能体 |
+
+### 工具包
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/toolkits` | 获取所有工具包 |
+
+### 知识库
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/knowledge-base` | 获取所有知识库 |
+| POST | `/api/knowledge-base` | 创建知识库 |
+| PUT | `/api/knowledge-base/:id` | 更新知识库 |
+| DELETE | `/api/knowledge-base/:id` | 删除知识库 |
+| POST | `/api/knowledge-base/:id/files` | 上传文件 |
+| POST | `/api/knowledge-base/:id/files/:fileId/train` | 训练文件 |
+| DELETE | `/api/knowledge-base/:id/files/:fileId` | 删除文件 |
+| POST | `/api/knowledge-base/:id/query` | 查询知识库 |
+
+## 快速开始
 
 ### 环境要求
 
@@ -72,299 +219,91 @@ hackathon-starter/
 - Docker & Docker Compose
 - PNPM >= 8
 
-### 1. 克隆项目
+### 1. 克隆并安装
 
 ```bash
 git clone <your-repo-url>
 cd hackathon-starter
-```
-
-### 2. 安装依赖
-
-```bash
 pnpm install
 ```
 
-### 3. 给脚本添加执行权限
+### 2. 配置环境变量
 
 ```bash
-chmod +x scripts/*.sh
+cp apps/agent-api/.env.example apps/agent-api/.env
 ```
 
-### 4. 启动开发环境
+编辑 `apps/agent-api/.env`，填入：
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hackathon
+REDIS_URL=redis://localhost:6379
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+### 3. 启动数据库
 
 ```bash
-# 使用docker-compose启动（推荐）
-./scripts/dev.sh
+docker compose up postgres redis -d
+```
 
-# 或者使用 pnpm 启动（需要先起数据库）
+### 4. 初始化数据库
+
+```bash
+cd apps/agent-api
+npx prisma migrate deploy
+npx prisma db seed
+```
+
+### 5. 启动开发服务
+
+```bash
+# 根目录
 pnpm dev
 ```
 
-## 🌐 服务访问地址
-
-启动成功后，您可以通过以下地址访问各个服务：
-
-| 服务 | 本地地址 | 端口 | 描述 |
-|------|----------|------|------|
-| **Next.js App** | http://localhost:3000 | 3000 | React 前端应用 |
-| **Vite App** | http://localhost:5173 | 5173 | Vite React 应用 |
-| **API Agent** | http://localhost:3001 | 3001 | NestJS API 服务 |
-| **Hono API** | http://localhost:3002 | 3002 | Hono API 服务 |
-| **PostgreSQL** | localhost:5432 | 5432 | 数据库服务 |
-| **Redis** | localhost:6379 | 6379 | 缓存服务 |
-
-## 📜 常用命令
-
-### 开发环境管理
+或使用 Docker 一键启动全部服务：
 
 ```bash
-# 启动开发环境（支持热更新）
-./scripts/dev.sh
-
-# 查看服务状态
-./scripts/status.sh
-
-# 停止服务
-./scripts/stop.sh
-
-# 启动特定服务
-docker compose up [service-name]
-
-# 停止特定服务
-docker compose stop [service-name]
-
-# 查看日志
-docker compose logs -f [service-name]
-
-# 重建特定服务
-docker compose up --build [service-name]
+docker compose up -d
 ```
 
-### Monorepo 开发
+### 服务地址
+
+| 服务 | 地址 | 端口 |
+|------|------|------|
+| 前端应用 | http://localhost:5173 | 5173 |
+| API 服务 | http://localhost:3001 | 3001 |
+| PostgreSQL | localhost:5432 | 5432 |
+| Redis | localhost:6379 | 6379 |
+
+## 常用命令
 
 ```bash
-# 在根目录执行所有应用的命令
-pnpm run dev          # 启动所有应用
-pnpm run build        # 构建所有应用
-pnpm run lint         # 检查所有应用
+# 开发
+pnpm dev                              # 启动所有应用
+pnpm --filter agent-api run dev       # 仅启动后端
+pnpm --filter agent-web run dev       # 仅启动前端
 
-# 针对特定应用执行命令
-pnpm --filter agent-api run dev
-pnpm --filter next run build
-pnpm --filter vite run lint
+# 构建
+pnpm build                            # 构建所有应用
 
-# 添加依赖到特定应用
-pnpm --filter agent-api add express
-pnpm --filter next add axios
-```
-
-### 数据库管理
-
-```bash
-# 进入 agent-api 容器
-docker compose exec agent-api sh
-
-# 在容器内执行 Prisma 命令
+# 数据库
 cd apps/agent-api
-pnpm run db:generate     # 生成客户端
-pnpm run db:migrate      # 运行迁移
-pnpm run db:push         # 推送模式更改
-pnpm run db:studio       # 打开 Prisma Studio
+npx prisma migrate dev --name xxx     # 创建迁移
+npx prisma migrate deploy             # 应用迁移
+npx prisma db seed                    # 填充种子数据
+npx prisma studio                     # 打开数据库管理界面
+
+# Docker
+docker compose up -d                  # 启动开发环境
+docker compose down                   # 停止服务
+docker compose logs -f agent-api      # 查看后端日志
 ```
 
-## 🏭 生产环境部署
+## 许可证
 
+本项目采用 MIT 许可证。
 
-### 1. 部署到生产环境
-
-```bash
-# 使用脚本部署
-./scripts/prod.sh
-
-# 或手动部署
-docker compose -f docker-compose.prod.yml up --build -d
-```
-
-### 2. 生产环境管理
-
-```bash
-# 查看生产环境状态
-docker compose -f docker-compose.prod.yml ps
-
-# 查看生产环境日志
-docker compose -f docker-compose.prod.yml logs -f
-
-# 停止生产环境
-docker compose -f docker-compose.prod.yml down
-
-# 更新服务
-docker compose -f docker-compose.prod.yml up --build -d [service-name]
-```
-
-## 🔥 热更新功能
-
-### 文件同步 (sync)
-
-- 源代码变更自动同步到容器
-- 支持的路径：`src/`、`app/`、`packages/`
-
-### 自动重建 (rebuild)
-
-- `package.json` 变更触发容器重新构建
-- 新增/删除依赖时自动重建
-
-### 使用方法
-
-```bash
-./scripts/dev.sh
-```
-
-## 📦 添加新的应用
-
-### 1. 创建新应用
-
-```bash
-# 在 apps 目录下创建新应用
-mkdir apps/new-app
-cd apps/new-app
-
-# 初始化 package.json
-pnpm init
-```
-
-### 2. 配置 package.json
-
-```json
-{
-  "name": "new-app",
-  "version": "0.0.1",
-  "private": true,
-  "scripts": {
-    "dev": "your-dev-command",
-    "build": "your-build-command",
-    "start": "your-start-command"
-  }
-}
-```
-
-### 3. 创建 Dockerfile
-
-参考现有应用的 Dockerfile 模板，创建适合的多阶段构建配置。
-
-### 4. 更新 docker-compose.yml
-
-在 `docker-compose.yml` 和 `docker-compose.prod.yml` 中添加新服务配置。
-
-## 🛡️ 最佳实践
-
-### 代码质量
-
-- 使用 ESLint 和 Prettier 保持代码一致性
-- 配置 Git hooks 进行代码检查
-- 遵循 TypeScript 严格模式
-
-### 安全性
-
-- 使用强密码和环境变量
-- 定期更新依赖包
-- 在生产环境中限制端口访问
-
-### 性能优化
-
-- 使用多阶段 Docker 构建
-- 合理配置缓存策略
-- 监控服务性能指标
-
-### 开发效率
-
-- 利用 Monorepo 共享代码
-- 使用热更新加速开发
-- 编写清晰的文档和注释
-
-## 🔧 故障排除
-
-### 常见问题
-
-#### 1. 端口冲突
-
-```bash
-# 查看端口占用
-lsof -i :3000
-
-# 修改 docker-compose.yml 中的端口映射
-ports:
-  - "3001:3000"  # 将本地端口改为 3001
-```
-
-#### 2. 容器启动失败
-
-```bash
-# 查看详细日志
-docker compose logs [service-name] --tail 50 -f
-
-# 重建镜像
-docker compose build --no-cache [service-name]
-
-# 清理 Docker 缓存
-docker system prune -a
-```
-
-#### 3. 数据库连接问题
-
-```bash
-# 检查数据库是否启动
-docker compose ps postgres
-
-# 测试数据库连接
-docker compose exec postgres psql -U postgres -d hackathon
-```
-
-#### 4. 热更新不工作
-
-```bash
-docker-compose watch
-
-# 检查文件权限
-ls -la apps/your-app/src/
-```
-
-### 清理命令
-
-```bash
-# 停止并删除所有容器
-docker compose down
-
-# 删除所有相关数据
-docker compose down -v
-
-# 清理 Docker 系统
-docker system prune -a
-```
-
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add some amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 开启 Pull Request
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-agent-api agent-web 暂不采用 MIT 许可证，后续将移植到单独的仓库，规划采用主流工作流框架相同的许可方式。
-
-## 🙋‍♂️ 支持
-
-如果您在使用过程中遇到问题：
-
-1. 查看本文档的故障排除部分
-2. 搜索已有的 Issues
-3. 创建新的 Issue 描述问题
-4. 联系项目维护者
-
----
-
-**祝您在黑客马拉松中取得好成绩！** 🏆
+agent-api 和 agent-web 暂不采用 MIT 许可证，后续将移植到单独的仓库，规划采用主流工作流框架相同的许可方式。
