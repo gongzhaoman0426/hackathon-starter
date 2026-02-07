@@ -33,6 +33,7 @@ export function Workflows() {
 
   // Execute workflow form
   const [executeInput, setExecuteInput] = useState('')
+  const [executeFields, setExecuteFields] = useState<Record<string, string>>({})
   const [executeResult, setExecuteResult] = useState<any>(null)
 
   const generateDslFromNaturalLanguage = async () => {
@@ -68,17 +69,38 @@ export function Workflows() {
     }
   }
 
-  const handleExecute = async () => {
-    if (!selectedWorkflow || !executeInput.trim()) return
+  // Helper: extract WORKFLOW_START event data fields from DSL
+  const getStartEventFields = (workflow: Workflow | null): Record<string, string> => {
+    if (!workflow?.DSL?.events) return {}
+    const startEvent = workflow.DSL.events.find((e: any) => e.type === 'WORKFLOW_START')
+    if (!startEvent?.data || typeof startEvent.data !== 'object') return {}
+    return startEvent.data as Record<string, string>
+  }
 
-    try {
-      let input
+  const handleExecute = async () => {
+    if (!selectedWorkflow) return
+
+    const fields = getStartEventFields(selectedWorkflow)
+    const fieldKeys = Object.keys(fields)
+
+    let input: any
+    if (fieldKeys.length > 0) {
+      // Build input from dynamic fields
+      input = { ...executeFields }
+      // Check all fields have values
+      const hasEmpty = fieldKeys.some((key) => !executeFields[key]?.trim())
+      if (hasEmpty) return
+    } else {
+      // Fallback: parse raw JSON input
+      if (!executeInput.trim()) return
       try {
         input = JSON.parse(executeInput)
       } catch {
         input = { input: executeInput }
       }
+    }
 
+    try {
       const result = await executeWorkflowMutation.mutateAsync({
         id: selectedWorkflow.id,
         data: {
@@ -115,6 +137,13 @@ export function Workflows() {
     setSelectedWorkflow(workflow)
     setExecuteInput('')
     setExecuteResult(null)
+    // Initialize dynamic fields from DSL
+    const fields = getStartEventFields(workflow)
+    const initial: Record<string, string> = {}
+    for (const key of Object.keys(fields)) {
+      initial[key] = ''
+    }
+    setExecuteFields(initial)
     setExecuteDialogOpen(true)
   }
 
@@ -345,16 +374,35 @@ export function Workflows() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="execute-input">输入参数 (JSON格式或纯文本)</Label>
-              <Textarea
-                id="execute-input"
-                value={executeInput}
-                onChange={(e) => setExecuteInput(e.target.value)}
-                placeholder='例如: {"message": "你好"} 或直接输入文本'
-                rows={4}
-              />
-            </div>
+            {(() => {
+              const fields = getStartEventFields(selectedWorkflow)
+              const fieldKeys = Object.keys(fields)
+              if (fieldKeys.length > 0) {
+                return fieldKeys.map((key) => (
+                  <div key={key}>
+                    <Label htmlFor={`execute-field-${key}`}>{key} ({fields[key]})</Label>
+                    <Input
+                      id={`execute-field-${key}`}
+                      value={executeFields[key] || ''}
+                      onChange={(e) => setExecuteFields({ ...executeFields, [key]: e.target.value })}
+                      placeholder={`请输入 ${key}`}
+                    />
+                  </div>
+                ))
+              }
+              return (
+                <div>
+                  <Label htmlFor="execute-input">输入参数 (JSON格式或纯文本)</Label>
+                  <Textarea
+                    id="execute-input"
+                    value={executeInput}
+                    onChange={(e) => setExecuteInput(e.target.value)}
+                    placeholder='例如: {"message": "你好"} 或直接输入文本'
+                    rows={4}
+                  />
+                </div>
+              )
+            })()}
 
             {executeResult && (
               <div>
@@ -377,7 +425,14 @@ export function Workflows() {
               </Button>
               <Button
                 onClick={handleExecute}
-                disabled={executeWorkflowMutation.isPending || !executeInput.trim()}
+                disabled={executeWorkflowMutation.isPending || (() => {
+                  const fields = getStartEventFields(selectedWorkflow)
+                  const fieldKeys = Object.keys(fields)
+                  if (fieldKeys.length > 0) {
+                    return fieldKeys.some((key) => !executeFields[key]?.trim())
+                  }
+                  return !executeInput.trim()
+                })()}
               >
                 {executeWorkflowMutation.isPending ? '执行中...' : '执行'}
               </Button>
