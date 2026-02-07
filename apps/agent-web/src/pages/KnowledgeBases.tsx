@@ -15,6 +15,7 @@ import {
   useTrainKnowledgeBaseFile,
   useDeleteKnowledgeBaseFile
 } from '../services/knowledge-base.service'
+import { useConfirmDialog } from '../hooks/use-confirm-dialog'
 import type { CreateKnowledgeBaseDto, KnowledgeBaseFile } from '../types'
 
 const defaultStatusCfg = { label: '待处理', icon: Clock, color: 'text-amber-500', badgeVariant: 'outline' as const }
@@ -37,6 +38,7 @@ export function KnowledgeBases() {
   const uploadFileMutation = useUploadFileToKnowledgeBase()
   const trainFileMutation = useTrainKnowledgeBaseFile()
   const deleteFileMutation = useDeleteKnowledgeBaseFile()
+  const { confirm, ConfirmDialog } = useConfirmDialog()
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [formData, setFormData] = useState<CreateKnowledgeBaseDto>({
@@ -60,7 +62,13 @@ export function KnowledgeBases() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个知识库吗？')) return
+    const confirmed = await confirm({
+      title: '删除知识库',
+      description: '确定要删除这个知识库吗？删除后无法恢复。',
+      confirmText: '删除',
+      variant: 'destructive',
+    })
+    if (!confirmed) return
 
     try {
       await deleteKnowledgeBaseMutation.mutateAsync(id)
@@ -86,7 +94,13 @@ export function KnowledgeBases() {
   }
 
   const handleDeleteFile = async (knowledgeBaseId: string, fileId: string) => {
-    if (!confirm('确定要删除这个文件吗？')) return
+    const confirmed = await confirm({
+      title: '删除文件',
+      description: '确定要删除这个文件吗？删除后无法恢复。',
+      confirmText: '删除',
+      variant: 'destructive',
+    })
+    if (!confirmed) return
 
     try {
       await deleteFileMutation.mutateAsync({ knowledgeBaseId, fileId })
@@ -352,6 +366,8 @@ export function KnowledgeBases() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog />
     </div>
   )
 }

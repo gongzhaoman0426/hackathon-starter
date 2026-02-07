@@ -8,13 +8,29 @@ import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { Separator } from '@workspace/ui/components/separator'
-import { ScrollArea } from '@workspace/ui/components/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs'
-import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles } from 'lucide-react'
+import { cn } from '@workspace/ui/lib/utils'
+import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles, ChevronRight, ChevronLeft, Check } from 'lucide-react'
 import { useAgents, useCreateAgent, useDeleteAgent } from '../services/agent.service'
 import { useToolkits } from '../services/toolkit.service'
 import { useKnowledgeBases } from '../services/knowledge-base.service'
+import { useConfirmDialog } from '../hooks/use-confirm-dialog'
 import type { CreateAgentDto } from '../types'
+
+const STEPS = [
+  { id: 0, title: '基本信息', description: '名称、描述和提示词' },
+  { id: 1, title: '工具包', description: '选择功能工具' },
+  { id: 2, title: '知识库', description: '关联知识文档' },
+  { id: 3, title: '确认创建', description: '检查并提交' },
+]
+
+const initialFormData: CreateAgentDto = {
+  name: '',
+  description: '',
+  prompt: '',
+  options: {},
+  toolkits: [],
+  knowledgeBases: []
+}
 
 export function Agents() {
   const { data: agents = [], isLoading: agentsLoading } = useAgents()
@@ -22,50 +38,76 @@ export function Agents() {
   const { data: knowledgeBases = [], isLoading: kbLoading } = useKnowledgeBases()
   const createAgentMutation = useCreateAgent()
   const deleteAgentMutation = useDeleteAgent()
+  const { confirm, alert, ConfirmDialog } = useConfirmDialog()
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [formData, setFormData] = useState<CreateAgentDto>({
-    name: '',
-    description: '',
-    prompt: '',
-    options: {},
-    toolkits: [],
-    knowledgeBases: []
-  })
+  const [step, setStep] = useState(0)
+  const [formData, setFormData] = useState<CreateAgentDto>({ ...initialFormData })
 
   const loading = agentsLoading || toolkitsLoading || kbLoading
 
+  const canGoNext = () => {
+    if (step === 0) return !!(formData.name?.trim() && formData.prompt?.trim())
+    return true
+  }
+
+  const handleNext = () => {
+    if (step < STEPS.length - 1 && canGoNext()) setStep(step + 1)
+  }
+
+  const handleBack = () => {
+    if (step > 0) setStep(step - 1)
+  }
+
   const handleCreate = async () => {
     if (!formData.name || !formData.prompt) return
-
     try {
       await createAgentMutation.mutateAsync(formData)
-      setCreateDialogOpen(false)
-      setFormData({
-        name: '',
-        description: '',
-        prompt: '',
-        options: {},
-        toolkits: [],
-        knowledgeBases: []
-      })
+      closeDialog()
     } catch (error) {
       console.error('Failed to create agent:', error)
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个智能体吗？')) return
+  const openDialog = () => {
+    setFormData({ ...initialFormData })
+    setStep(0)
+    setCreateDialogOpen(true)
+  }
 
+  const closeDialog = () => {
+    setCreateDialogOpen(false)
+    setStep(0)
+    setFormData({ ...initialFormData })
+  }
+
+  const handleDelete = async (id: string) => {
+    const confirmed = await confirm({
+      title: '删除智能体',
+      description: '确定要删除这个智能体吗？删除后无法恢复。',
+      confirmText: '删除',
+      variant: 'destructive',
+    })
+    if (!confirmed) return
     try {
-      console.log('开始删除智能体:', id)
       await deleteAgentMutation.mutateAsync(id)
-      console.log('删除智能体成功:', id)
     } catch (error) {
       console.error('删除智能体失败:', error)
-      alert('删除失败: ' + (error as Error).message)
+      await alert({
+        title: '删除失败',
+        description: (error as Error).message,
+      })
     }
   }
+
+  // --- helpers for summary ---
+  const selectedToolkitNames = toolkits
+    .filter((tk) => formData.toolkits?.some((t: any) => t.toolkitId === tk.id))
+    .map((tk) => tk.name)
+
+  const selectedKbNames = knowledgeBases
+    .filter((kb: any) => formData.knowledgeBases?.includes(kb.id))
+    .map((kb: any) => kb.name)
 
   if (loading) {
     return (
@@ -93,7 +135,7 @@ export function Agents() {
             </div>
           </div>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+        <Button onClick={openDialog} className="gap-2">
           <Plus className="h-4 w-4" />
           创建智能体
         </Button>
@@ -158,7 +200,6 @@ export function Agents() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 pt-0">
-                {/* Prompt Preview */}
                 <div className="rounded-lg bg-muted/50 p-2.5">
                   <p className="text-xs text-muted-foreground mb-1 font-medium">提示词</p>
                   <p className="text-xs leading-relaxed line-clamp-2">
@@ -169,7 +210,6 @@ export function Agents() {
                   </p>
                 </div>
 
-                {/* Toolkits & Knowledge Bases */}
                 <div className="space-y-2">
                   {agent.agentToolkits && agent.agentToolkits.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -181,7 +221,6 @@ export function Agents() {
                       ))}
                     </div>
                   )}
-
                   {agent.agentKnowledgeBases && agent.agentKnowledgeBases.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <BookOpen className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -196,7 +235,6 @@ export function Agents() {
 
                 <Separator />
 
-                {/* Actions */}
                 <div className="flex gap-2">
                   <Link to={`/?agent=${agent.id}`} className="flex-1">
                     <Button className="w-full gap-1.5" size="sm" variant="default">
@@ -227,7 +265,7 @@ export function Agents() {
             <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
               创建您的第一个智能体，配置工具包和知识库，开始智能对话
             </p>
-            <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+            <Button onClick={openDialog} className="gap-2">
               <Plus className="h-4 w-4" />
               创建智能体
             </Button>
@@ -235,87 +273,135 @@ export function Agents() {
         </Card>
       )}
 
-      {/* Create Agent Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                <Sparkles className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <DialogTitle>创建智能体</DialogTitle>
-                <DialogDescription>
-                  配置您的AI智能体的基本信息和能力
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-6">
-              {/* 基本信息 */}
-              <div className="space-y-4">
+      {/* Create Agent Dialog - Stepper */}
+      <Dialog open={createDialogOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
+          {/* Dialog Header */}
+          <div className="px-6 pt-6 pb-4">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
                 <div>
-                  <Label htmlFor="name">名称 *</Label>
+                  <DialogTitle>创建智能体</DialogTitle>
+                  <DialogDescription>
+                    {STEPS[step]?.description}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+
+          {/* Stepper Indicator */}
+          <div className="px-6 pb-4">
+            <div className="flex items-center gap-1">
+              {STEPS.map((s, i) => (
+                <div key={s.id} className="flex items-center flex-1">
+                  <button
+                    type="button"
+                    onClick={() => { if (i < step || (i > step && canGoNext())) setStep(i) }}
+                    disabled={i > step && !canGoNext()}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors w-full',
+                      i === step
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : i < step
+                          ? 'text-muted-foreground hover:bg-muted/50 cursor-pointer'
+                          : 'text-muted-foreground/50'
+                    )}
+                  >
+                    <div className={cn(
+                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                      i === step
+                        ? 'bg-primary text-primary-foreground'
+                        : i < step
+                          ? 'bg-primary/20 text-primary'
+                          : 'bg-muted text-muted-foreground/50'
+                    )}>
+                      {i < step ? <Check className="h-3 w-3" /> : i + 1}
+                    </div>
+                    <span className="truncate hidden sm:inline">{s.title}</span>
+                  </button>
+                  {i < STEPS.length - 1 && (
+                    <div className={cn(
+                      'h-px w-4 shrink-0 mx-0.5',
+                      i < step ? 'bg-primary/30' : 'bg-border'
+                    )} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Step Content */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 min-h-[300px]">
+            {/* Step 0: 基本信息 */}
+            {step === 0 && (
+              <div className="space-y-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">名称 <span className="text-destructive">*</span></Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="输入智能体名称"
+                    placeholder="例如：客服助手、代码审查员"
                   />
                 </div>
-
-                <div>
+                <div className="space-y-1.5">
                   <Label htmlFor="description">描述</Label>
                   <Input
                     id="description"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="输入智能体描述"
+                    placeholder="简要描述智能体的用途"
                   />
                 </div>
-
-                <div>
-                  <Label htmlFor="prompt">系统提示词 *</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="prompt">系统提示词 <span className="text-destructive">*</span></Label>
                   <Textarea
                     id="prompt"
                     value={formData.prompt}
                     onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-                    placeholder="输入智能体的系统提示词，定义其行为和能力"
-                    rows={6}
+                    placeholder="定义智能体的角色、行为和能力边界..."
+                    rows={8}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    提示词决定了智能体的核心行为，请尽量详细描述
+                  </p>
                 </div>
               </div>
+            )}
 
-              <Separator />
-
-              {/* 能力配置 */}
-              <Tabs defaultValue="toolkits" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="toolkits" className="gap-1.5">
-                    <Wrench className="h-3.5 w-3.5" />
-                    工具包配置
-                  </TabsTrigger>
-                  <TabsTrigger value="knowledge" className="gap-1.5">
-                    <BookOpen className="h-3.5 w-3.5" />
-                    知识库配置
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="toolkits" className="space-y-4">
-                  <div>
-                    <Label className="text-base font-medium">选择工具包</Label>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      为智能体选择所需的工具包，提供不同的功能能力
-                    </p>
-                    <div className="grid grid-cols-1 gap-3">
-                      {toolkits.map((toolkit) => (
-                        <div key={toolkit.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+            {/* Step 1: 工具包 */}
+            {step === 1 && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    为智能体选择所需的工具包，赋予不同的功能能力。此步骤可选。
+                  </p>
+                </div>
+                {toolkits.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {toolkits.map((toolkit) => {
+                      const isSelected = formData.toolkits?.some((t: any) => t.toolkitId === toolkit.id)
+                      return (
+                        <label
+                          key={toolkit.id}
+                          htmlFor={`toolkit-${toolkit.id}`}
+                          className={cn(
+                            'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all',
+                            isSelected
+                              ? 'border-primary/40 bg-primary/5'
+                              : 'border-border hover:border-primary/20 hover:bg-muted/30'
+                          )}
+                        >
                           <input
                             type="checkbox"
                             id={`toolkit-${toolkit.id}`}
-                            checked={formData.toolkits?.some((t: any) => t.toolkitId === toolkit.id)}
+                            checked={!!isSelected}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setFormData({
@@ -329,49 +415,73 @@ export function Agents() {
                                 })
                               }
                             }}
-                            className="mt-1"
+                            className="mt-0.5 accent-primary"
                           />
-                          <div className="flex-1">
-                            <Label htmlFor={`toolkit-${toolkit.id}`} className="font-medium cursor-pointer">
-                              {toolkit.name}
-                            </Label>
-                            <p className="text-sm text-muted-foreground mt-1">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{toolkit.name}</span>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                {toolkit.tools.length} 工具
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                               {toolkit.description}
                             </p>
                             {toolkit.tools && toolkit.tools.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
-                                {toolkit.tools.slice(0, 3).map((tool: any) => (
-                                  <Badge key={tool.id} variant="outline" className="text-xs">
+                                {toolkit.tools.slice(0, 4).map((tool: any) => (
+                                  <Badge key={tool.id} variant="outline" className="text-[10px] px-1.5 py-0 h-4">
                                     {tool.name}
                                   </Badge>
                                 ))}
-                                {toolkit.tools.length > 3 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    +{toolkit.tools.length - 3} 更多
+                                {toolkit.tools.length > 4 && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                                    +{toolkit.tools.length - 4}
                                   </Badge>
                                 )}
                               </div>
                             )}
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        </label>
+                      )
+                    })}
                   </div>
-                </TabsContent>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Wrench className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">暂无可用的工具包</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-                <TabsContent value="knowledge" className="space-y-4">
-                  <div>
-                    <Label className="text-base font-medium">选择知识库</Label>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      为智能体选择相关的知识库，提供专业领域知识支持
-                    </p>
-                    <div className="grid grid-cols-1 gap-3">
-                      {knowledgeBases.map((kb: any) => (
-                        <div key={kb.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+            {/* Step 2: 知识库 */}
+            {step === 2 && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    关联知识库为智能体提供专业领域知识支持。此步骤可选。
+                  </p>
+                </div>
+                {knowledgeBases.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {knowledgeBases.map((kb: any) => {
+                      const isSelected = formData.knowledgeBases?.includes(kb.id)
+                      return (
+                        <label
+                          key={kb.id}
+                          htmlFor={`kb-${kb.id}`}
+                          className={cn(
+                            'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all',
+                            isSelected
+                              ? 'border-emerald-500/40 bg-emerald-500/5'
+                              : 'border-border hover:border-emerald-500/20 hover:bg-muted/30'
+                          )}
+                        >
                           <input
                             type="checkbox"
                             id={`kb-${kb.id}`}
-                            checked={formData.knowledgeBases?.includes(kb.id)}
+                            checked={!!isSelected}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setFormData({
@@ -385,60 +495,140 @@ export function Agents() {
                                 })
                               }
                             }}
-                            className="mt-1"
+                            className="mt-0.5 accent-emerald-500"
                           />
-                          <div className="flex-1">
-                            <Label htmlFor={`kb-${kb.id}`} className="font-medium cursor-pointer">
-                              {kb.name}
-                            </Label>
-                            <p className="text-sm text-muted-foreground mt-1">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{kb.name}</span>
+                              {kb.files && kb.files.length > 0 && (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                  {kb.files.length} 文件
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                               {kb.description || '暂无描述'}
                             </p>
-                            {kb.files && kb.files.length > 0 && (
-                              <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {kb.files.filter((f: any) => f.status === 'PROCESSED').length} 个已训练文件
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  共 {kb.files.length} 个文件
-                                </Badge>
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      ))}
-                      {knowledgeBases.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <p>暂无可用的知识库</p>
-                          <p className="text-sm mt-1">
-                            您可以先到 <Link to="/manage/knowledge-bases" className="text-primary hover:underline">知识库管理</Link> 创建知识库
-                          </p>
-                        </div>
-                      )}
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">暂无可用的知识库</p>
+                    <p className="text-xs mt-1">
+                      前往 <Link to="/manage/knowledge-bases" className="text-primary hover:underline">知识库管理</Link> 创建
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: 确认 */}
+            {step === 3 && (
+              <div className="space-y-5">
+                <p className="text-sm text-muted-foreground">请确认以下配置信息，然后点击创建。</p>
+
+                <div className="space-y-4">
+                  {/* 基本信息 */}
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">基本信息</span>
+                    </div>
+                    <div className="grid grid-cols-[80px_1fr] gap-y-2 gap-x-3 text-sm">
+                      <span className="text-muted-foreground">名称</span>
+                      <span className="font-medium">{formData.name}</span>
+                      <span className="text-muted-foreground">描述</span>
+                      <span>{formData.description || '—'}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">提示词</span>
+                      <div className="mt-1 rounded-md bg-muted/50 p-2.5 text-xs leading-relaxed max-h-24 overflow-y-auto">
+                        {formData.prompt}
+                      </div>
                     </div>
                   </div>
-                </TabsContent>
-              </Tabs>
-            </div>
-          </ScrollArea>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setCreateDialogOpen(false)}
-              disabled={createAgentMutation.isPending}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={createAgentMutation.isPending || !formData.name || !formData.prompt}
-            >
-              {createAgentMutation.isPending ? '创建中...' : '创建'}
-            </Button>
+                  {/* 工具包 */}
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="h-4 w-4 text-amber-500" />
+                      <span className="text-sm font-medium">工具包</span>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+                        {selectedToolkitNames.length} 个
+                      </Badge>
+                    </div>
+                    {selectedToolkitNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedToolkitNames.map((name) => (
+                          <Badge key={name} variant="outline" className="text-xs">{name}</Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">未选择工具包</p>
+                    )}
+                  </div>
+
+                  {/* 知识库 */}
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-emerald-500" />
+                      <span className="text-sm font-medium">知识库</span>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+                        {selectedKbNames.length} 个
+                      </Badge>
+                    </div>
+                    {selectedKbNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedKbNames.map((name) => (
+                          <Badge key={name} variant="outline" className="text-xs">{name}</Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">未选择知识库</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Footer Actions */}
+          <div className="flex items-center justify-between px-6 py-4">
+            <div>
+              {step > 0 && (
+                <Button variant="ghost" size="sm" onClick={handleBack} className="gap-1.5">
+                  <ChevronLeft className="h-4 w-4" />
+                  上一步
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={closeDialog} disabled={createAgentMutation.isPending}>
+                取消
+              </Button>
+              {step < STEPS.length - 1 ? (
+                <Button size="sm" onClick={handleNext} disabled={!canGoNext()} className="gap-1.5">
+                  下一步
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button size="sm" onClick={handleCreate} disabled={createAgentMutation.isPending} className="gap-1.5">
+                  {createAgentMutation.isPending ? '创建中...' : '创建智能体'}
+                  {!createAgentMutation.isPending && <Check className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog />
     </div>
   )
 }

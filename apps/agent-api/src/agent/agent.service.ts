@@ -126,7 +126,7 @@ export class AgentService {
             data: {
               agentId: agentId,
               toolkitId: config.toolkitId,
-              settings: config.settings,
+              settings: { ...config.settings, agentId },
             },
           });
         } else {

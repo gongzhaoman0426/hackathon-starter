@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/componen
 import { Separator } from '@workspace/ui/components/separator'
 import { GitBranch, Plus, Play, Trash2, Sparkles, Wand2, FileCode, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useWorkflows, useCreateWorkflow, useDeleteWorkflow, useGenerateDsl, useExecuteWorkflow } from '../services/workflow.service'
+import { useConfirmDialog } from '../hooks/use-confirm-dialog'
 import type { Workflow, CreateWorkflowDto } from '../types'
 
 export function Workflows() {
@@ -18,6 +19,7 @@ export function Workflows() {
   const deleteWorkflowMutation = useDeleteWorkflow()
   const generateDslMutation = useGenerateDsl()
   const executeWorkflowMutation = useExecuteWorkflow()
+  const { confirm, alert, ConfirmDialog } = useConfirmDialog()
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [executeDialogOpen, setExecuteDialogOpen] = useState(false)
@@ -54,7 +56,7 @@ export function Workflows() {
       })
     } catch (error) {
       console.error('Failed to generate DSL:', error)
-      alert('生成工作流失败，请检查输入或稍后重试')
+      await alert({ title: '生成失败', description: '生成工作流失败，请检查输入或稍后重试' })
     }
   }
 
@@ -67,7 +69,7 @@ export function Workflows() {
       resetCreateForm()
     } catch (error) {
       console.error('Failed to create workflow:', error)
-      alert('创建工作流失败，请检查配置')
+      await alert({ title: '创建失败', description: '创建工作流失败，请检查配置' })
     }
   }
 
@@ -119,7 +121,13 @@ export function Workflows() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个工作流吗？')) return
+    const confirmed = await confirm({
+      title: '删除工作流',
+      description: '确定要删除这个工作流吗？删除后无法恢复。',
+      confirmText: '删除',
+      variant: 'destructive',
+    })
+    if (!confirmed) return
 
     try {
       await deleteWorkflowMutation.mutateAsync(id)
@@ -523,6 +531,8 @@ export function Workflows() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog />
     </div>
   )
 }

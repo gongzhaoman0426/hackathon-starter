@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useChatSessions, useChatSession } from '../../hooks/use-chat-sessions'
 import { useChatWithAgent, useAgents } from '../../services/agent.service'
 import { chatStorage } from '../../lib/chat-storage'
@@ -10,15 +10,17 @@ import type { ChatMessage } from '../../types'
 
 export function ChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { createSession, addMessage } = useChatSessions()
   const session = useChatSession(sessionId)
   const chatMutation = useChatWithAgent()
   const { data: agents = [] } = useAgents()
 
+  const agentFromUrl = searchParams.get('agent') || ''
   const lastAgentId = chatStorage.getLastAgentId()
   const [selectedAgentId, setSelectedAgentId] = useState(
-    () => session?.agentId || lastAgentId || ''
+    () => session?.agentId || agentFromUrl || lastAgentId || ''
   )
 
   const currentAgentId = session?.agentId || selectedAgentId
