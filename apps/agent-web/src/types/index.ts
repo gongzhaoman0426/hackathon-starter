@@ -130,3 +130,14 @@ export interface UpdateKnowledgeBaseDto {
 export interface ChatWithKnowledgeBaseDto {
   message: string;
 }
+
+// Chat Session Types
+export interface ChatSession {
+  id: string;
+  title: string;
+  agentId: string;
+  agentName: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+}

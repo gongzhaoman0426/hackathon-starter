@@ -140,7 +140,7 @@ export function Agents() {
                   )}
 
                   <div className="flex gap-2">
-                    <Link to={`/agents/${agent.id}/chat`} className="flex-1">
+                    <Link to={`/?agent=${agent.id}`} className="flex-1">
                       <Button className="w-full" size="sm">
                         对话测试
                       </Button>
@@ -334,7 +334,7 @@ export function Agents() {
                         <div className="text-center py-8 text-muted-foreground">
                           <p>暂无可用的知识库</p>
                           <p className="text-sm mt-1">
-                            您可以先到 <Link to="/knowledge-bases" className="text-primary hover:underline">知识库管理</Link> 创建知识库
+                            您可以先到 <Link to="/manage/knowledge-bases" className="text-primary hover:underline">知识库管理</Link> 创建知识库
                           </p>
                         </div>
                       )}

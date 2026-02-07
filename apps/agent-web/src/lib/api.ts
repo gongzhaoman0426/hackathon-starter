@@ -29,6 +29,9 @@ interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+// Exported for potential future use
+export type { ApiResponse, PaginatedResponse };
+
 class ApiClient {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
