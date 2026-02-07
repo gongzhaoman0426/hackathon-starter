@@ -9,7 +9,8 @@ import { Label } from '@workspace/ui/components/label'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { Separator } from '@workspace/ui/components/separator'
 import { cn } from '@workspace/ui/lib/utils'
-import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles, ChevronRight, ChevronLeft, Check, Pencil, GitBranch } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@workspace/ui/components/tabs'
+import { Bot, Plus, MessageSquare, Trash2, Wrench, BookOpen, Sparkles, ChevronRight, ChevronLeft, Check, Pencil, GitBranch, Code, Copy, CheckCheck } from 'lucide-react'
 import { useAgents, useCreateAgent, useDeleteAgent, useUpdateAgent } from '../services/agent.service'
 import { useToolkits } from '../services/toolkit.service'
 import { useKnowledgeBases } from '../services/knowledge-base.service'
@@ -49,8 +50,29 @@ export function Agents() {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [step, setStep] = useState(0)
   const [formData, setFormData] = useState<CreateAgentDto>({ ...initialFormData })
+  const [apiDialogAgent, setApiDialogAgent] = useState<{ id: string; name: string } | null>(null)
+  const [copiedBlock, setCopiedBlock] = useState<string | null>(null)
 
   const loading = agentsLoading || toolkitsLoading || kbLoading || wfLoading
+
+  const handleCopy = (text: string, blockId: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedBlock(blockId)
+    setTimeout(() => setCopiedBlock(null), 2000)
+  }
+
+  const CodeBlock = ({ code, id }: { code: string; id: string }) => (
+    <div className="relative group/code">
+      <button
+        type="button"
+        onClick={() => handleCopy(code, id)}
+        className="absolute right-2 top-2 p-1.5 rounded-md bg-muted/80 hover:bg-muted text-muted-foreground opacity-0 group-hover/code:opacity-100 transition-opacity"
+      >
+        {copiedBlock === id ? <CheckCheck className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+      <pre className="rounded-lg bg-muted/50 border p-3 text-xs leading-relaxed overflow-x-auto"><code>{code}</code></pre>
+    </div>
+  )
 
   const canGoNext = () => {
     if (step === 0) return !!(formData.name?.trim() && formData.prompt?.trim())
@@ -289,6 +311,14 @@ export function Agents() {
                       对话测试
                     </Button>
                   </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-primary"
+                    onClick={() => setApiDialogAgent({ id: agent.id, name: agent.name })}
+                  >
+                    <Code className="h-3.5 w-3.5" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -770,6 +800,179 @@ export function Agents() {
                 </Button>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* API 接入对话框 */}
+      <Dialog open={!!apiDialogAgent} onOpenChange={(open) => { if (!open) setApiDialogAgent(null) }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <div className="px-6 pt-6 pb-4">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <Code className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <DialogTitle>API 接入</DialogTitle>
+                  <DialogDescription>
+                    {apiDialogAgent?.name} - Chat 接口调用方式
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+          <Separator />
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {apiDialogAgent && (
+              <div className="space-y-6">
+                {/* 接口信息 */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">接口地址</h3>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="shrink-0">POST</Badge>
+                    <code className="flex-1 rounded-md bg-muted/50 border px-3 py-1.5 text-xs break-all">
+                      {`http://localhost:3001/api/agents/${apiDialogAgent.id}/chat`}
+                    </code>
+                  </div>
+                </div>
+
+                {/* 请求参数 */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">请求参数</h3>
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/50">
+                          <th className="text-left px-3 py-2 font-medium">字段</th>
+                          <th className="text-left px-3 py-2 font-medium">类型</th>
+                          <th className="text-left px-3 py-2 font-medium">必填</th>
+                          <th className="text-left px-3 py-2 font-medium">说明</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">message</td>
+                          <td className="px-3 py-2 text-muted-foreground">string</td>
+                          <td className="px-3 py-2"><Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">必填</Badge></td>
+                          <td className="px-3 py-2 text-muted-foreground">用户发送的消息内容</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">context</td>
+                          <td className="px-3 py-2 text-muted-foreground">object</td>
+                          <td className="px-3 py-2"><Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">可选</Badge></td>
+                          <td className="px-3 py-2 text-muted-foreground">上下文信息，自定义键值对</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">generateTitle</td>
+                          <td className="px-3 py-2 text-muted-foreground">boolean</td>
+                          <td className="px-3 py-2"><Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">可选</Badge></td>
+                          <td className="px-3 py-2 text-muted-foreground">是否生成对话标题（首次对话时使用）</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 代码示例 */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">代码示例</h3>
+                  <Tabs defaultValue="curl">
+                    <TabsList>
+                      <TabsTrigger value="curl">cURL</TabsTrigger>
+                      <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                      <TabsTrigger value="python">Python</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="curl">
+                      <CodeBlock id="curl" code={`curl -X POST http://localhost:3001/api/agents/${apiDialogAgent.id}/chat \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "message": "你好，请介绍一下你自己",
+    "generateTitle": true
+  }'`} />
+                    </TabsContent>
+                    <TabsContent value="javascript">
+                      <CodeBlock id="javascript" code={`const response = await fetch(
+  "http://localhost:3001/api/agents/${apiDialogAgent.id}/chat",
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: "你好，请介绍一下你自己",
+      generateTitle: true,
+    }),
+  }
+);
+const data = await response.json();
+console.log(data.response);`} />
+                    </TabsContent>
+                    <TabsContent value="python">
+                      <CodeBlock id="python" code={`import requests
+
+response = requests.post(
+    "http://localhost:3001/api/agents/${apiDialogAgent.id}/chat",
+    json={
+        "message": "你好，请介绍一下你自己",
+        "generateTitle": True,
+    },
+)
+data = response.json()
+print(data["response"])`} />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+
+                {/* 响应示例 */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">响应示例</h3>
+                  <CodeBlock id="response" code={`{
+  "agentId": "${apiDialogAgent.id}",
+  "agentName": "${apiDialogAgent.name}",
+  "userMessage": "你好，请介绍一下你自己",
+  "response": "你好！我是${apiDialogAgent.name}...",
+  "timestamp": "2025-01-01T00:00:00.000Z",
+  "context": {},
+  "title": "自我介绍"
+}`} />
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/50">
+                          <th className="text-left px-3 py-2 font-medium">字段</th>
+                          <th className="text-left px-3 py-2 font-medium">说明</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">response</td>
+                          <td className="px-3 py-2 text-muted-foreground">智能体的回复内容</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">agentId</td>
+                          <td className="px-3 py-2 text-muted-foreground">智能体 ID</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">agentName</td>
+                          <td className="px-3 py-2 text-muted-foreground">智能体名称</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">userMessage</td>
+                          <td className="px-3 py-2 text-muted-foreground">用户发送的原始消息</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">timestamp</td>
+                          <td className="px-3 py-2 text-muted-foreground">响应时间戳</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">title</td>
+                          <td className="px-3 py-2 text-muted-foreground">对话标题（仅当 generateTitle 为 true 时返回）</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
