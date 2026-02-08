@@ -33,8 +33,10 @@ export function ChatPage() {
     sessionId,
   )
 
-  const currentAgentId = session?.agentId || selectedAgentId
-  const currentAgent = agents.find((a) => a.id === currentAgentId)
+  const rawAgentId = session?.agentId || selectedAgentId
+  const currentAgent = agents.find((a) => a.id === rawAgentId)
+  // 只有当 agent 确实存在于当前用户的列表中时才视为有效
+  const currentAgentId = currentAgent ? rawAgentId : ''
   const messages = session?.messages || []
 
   const handleAgentChange = useCallback(

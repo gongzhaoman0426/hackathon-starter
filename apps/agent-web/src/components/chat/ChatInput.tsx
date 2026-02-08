@@ -52,7 +52,7 @@ export function ChatInput({ onSend, onStop, disabled, isLoading, agentId, onAgen
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="发送消息..."
+          placeholder={agentId ? '发送消息...' : '请先选择智能体'}
           disabled={disabled}
           rows={1}
           className="grow resize-none border-0 bg-transparent p-2 text-base outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
