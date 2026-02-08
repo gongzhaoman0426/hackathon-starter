@@ -62,7 +62,11 @@ RUN pnpm install --frozen-lockfile --prod
 # 复制构建产物
 COPY --from=builder /app/apps/agent-api/dist ./apps/agent-api/dist
 COPY --from=builder /app/apps/agent-api/prisma ./apps/agent-api/prisma
-COPY --from=builder /app/apps/agent-api/node_modules/.prisma ./apps/agent-api/node_modules/.prisma
+
+# 生成 Prisma 客户端
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+RUN cd apps/agent-api && npx prisma generate
+ENV DATABASE_URL=""
 
 # 暴露端口
 EXPOSE 3001
