@@ -39,6 +39,9 @@ COPY --from=pruner /app/out/full/ .
 RUN cd apps/agent-api && pnpm run db:generate
 RUN turbo run build --filter=agent-api
 
+# 将 Prisma 生成的客户端复制到固定位置，方便 production 阶段取用
+RUN cp -r $(find /app/node_modules/.pnpm -path "*/@prisma/client/node_modules/.prisma" -type d | head -1) /app/prisma-client
+
 # 生产阶段
 FROM node:20-slim AS production
 WORKDIR /app
@@ -63,8 +66,8 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /app/apps/agent-api/dist ./apps/agent-api/dist
 COPY --from=builder /app/apps/agent-api/prisma ./apps/agent-api/prisma
 
-# 生成 Prisma 客户端（仅需 schema，不连接数据库）
-RUN cd apps/agent-api && DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" npx prisma generate
+# 复制 builder 阶段已生成的 Prisma 客户端
+COPY --from=builder /app/prisma-client ./node_modules/.prisma
 
 # 暴露端口
 EXPOSE 3001
