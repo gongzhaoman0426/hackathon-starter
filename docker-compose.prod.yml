@@ -43,7 +43,7 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    command: sh -c "cd apps/agent-api && pnpm run db:deploy"
+    command: sh -c "cd apps/agent-api && prisma migrate deploy --schema=./prisma/schema.prisma"
     restart: "no"
 
   # API Agent服务 (NestJS)
