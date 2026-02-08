@@ -3,9 +3,6 @@ name: Deploy Backend
 on:
   push:
     branches: [backend]
-    paths:
-      - 'apps/agent-api/**'
-      - 'packages/**'
   workflow_dispatch:
 
 env:
