@@ -10,7 +10,7 @@ export function ChatHeader() {
       <ChatSidebarToggle />
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link to="/">
+          <Link to="/chat">
             <Button variant="outline" className="h-8 px-2 md:h-fit md:px-2">
               <Plus size={16} />
               <span className="md:sr-only">新建聊天</span>

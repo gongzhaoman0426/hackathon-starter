@@ -25,7 +25,7 @@ export function ChatSidebarHistoryItem({ session, onDelete }: ChatSidebarHistory
   const handleDelete = () => {
     onDelete(session.agentId, session.id)
     if (isActive) {
-      navigate('/')
+      navigate('/chat')
     }
   }
 

@@ -8,7 +8,7 @@ import { queryKeys } from '../../lib/query-keys'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
-import type { ChatMessage } from '../../types'
+import type { ChatMessage, ChatSessionSummary } from '../../types'
 
 const LAST_AGENT_KEY = 'last-agent-id'
 
@@ -54,10 +54,23 @@ export function ChatPage() {
       let activeSessionId = sessionId
       const isFirstMessage = !sessionId
 
-      // 首次消息：前端生成 sessionId，导航到新会话
+      // 首次消息：前端生成 sessionId
       if (!activeSessionId) {
         activeSessionId = crypto.randomUUID()
-        navigate(`/chat/${activeSessionId}?agent=${currentAgentId}`, { replace: true })
+
+        // 乐观更新侧边栏：立即插入占位会话
+        const now = new Date().toISOString()
+        queryClient.setQueryData(queryKeys.chatSessions(), (old: any) => {
+          const placeholder: ChatSessionSummary = {
+            id: activeSessionId!,
+            title: '新对话',
+            agentId: currentAgentId,
+            agentName: currentAgent?.name || '智能体',
+            createdAt: now,
+            updatedAt: now,
+          }
+          return old ? [placeholder, ...old] : [placeholder]
+        })
       }
 
       // 乐观更新：立即显示用户消息
@@ -85,6 +98,11 @@ export function ChatPage() {
         return { ...old, messages: [...old.messages, userMessage] }
       })
 
+      // 首次消息：写入 cache 后再导航，新组件会从 cache 读到乐观数据
+      if (isFirstMessage) {
+        navigate(`/chat/${activeSessionId}?agent=${currentAgentId}`, { replace: true })
+      }
+
       const assistantMsgId = crypto.randomUUID()
       assistantMsgIdRef.current = assistantMsgId
       let assistantCreated = false
@@ -93,7 +111,7 @@ export function ChatPage() {
       setIsBusy(true)
 
       try {
-        await apiClient.streamChatWithAgent(
+        const result = await apiClient.streamChatWithAgent(
           currentAgentId,
           {
             message: content,
@@ -132,9 +150,15 @@ export function ChatPage() {
           },
         )
 
-        // 首次消息后刷新侧边栏会话列表（标题已生成）
+        // 首次消息：用返回的标题直接更新侧边栏 cache，避免全量刷新闪烁
         if (isFirstMessage) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.chatSessions() })
+          const title = result?.title || '新对话'
+          queryClient.setQueryData(queryKeys.chatSessions(), (old: any) => {
+            if (!old) return old
+            return old.map((s: ChatSessionSummary) =>
+              s.id === activeSessionId ? { ...s, title } : s
+            )
+          })
         }
       } catch {
         // 错误时：如果助手消息还没创建，先创建一条

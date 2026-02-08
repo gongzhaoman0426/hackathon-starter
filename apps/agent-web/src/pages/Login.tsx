@@ -38,7 +38,7 @@ export function Login() {
       } else {
         await register(username, password);
       }
-      navigate('/');
+      navigate('/chat');
     } catch (err: any) {
       setError(err.message || (isLogin ? '登录失败' : '注册失败'));
     } finally {

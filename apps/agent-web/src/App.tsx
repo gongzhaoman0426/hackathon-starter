@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ChatLayout } from './components/chat/ChatLayout'
-import { ChatPage } from './components/chat/ChatPage'
 import { ManageLayout } from './components/manage/ManageLayout'
 import { Agents } from './pages/Agents'
 import { Toolkits } from './pages/Toolkits'
@@ -22,10 +21,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route element={<ProtectedRoute><ChatLayout /></ProtectedRoute>}>
-        <Route path="/" element={<ChatPage />} />
-        <Route path="/chat/:sessionId" element={<ChatPage />} />
-      </Route>
+      <Route path="/chat/:sessionId?" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+      <Route path="/" element={<Navigate to="/chat" replace />} />
       <Route element={<ProtectedRoute><ManageLayout /></ProtectedRoute>}>
         <Route path="/manage/agents" element={<Agents />} />
         <Route path="/manage/toolkits" element={<Toolkits />} />

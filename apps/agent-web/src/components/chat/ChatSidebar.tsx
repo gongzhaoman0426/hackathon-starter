@@ -47,7 +47,7 @@ export function ChatSidebar() {
         {/* Header */}
         <div className="flex h-14 items-center justify-between px-4 shrink-0">
           <Link
-            to="/"
+            to="/chat"
             className="cursor-pointer rounded-md px-2 font-semibold text-lg hover:bg-muted"
             onClick={closeMobile}
           >
@@ -56,7 +56,7 @@ export function ChatSidebar() {
           <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link to="/" onClick={closeMobile}>
+                <Link to="/chat" onClick={closeMobile}>
                   <Button variant="ghost" size="icon" className="size-8">
                     <Plus size={16} />
                     <span className="sr-only">新建聊天</span>
