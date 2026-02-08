@@ -20,6 +20,12 @@ export class AgentController {
     return this.agentService.findAll();
   }
 
+  // 会话端点（必须在 :id 路由之前注册，避免路由冲突）
+  @Get('sessions/all')
+  async getAllSessions() {
+    return this.agentService.getAllSessions();
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.agentService.findOne(id);
@@ -54,5 +60,26 @@ export class AgentController {
   @Get(':id/toolkits')
   async getAgentToolkits(@Param('id') id: string) {
     return this.agentService.getAgentToolkits(id);
+  }
+
+  @Get(':id/sessions')
+  async getAgentSessions(@Param('id') id: string) {
+    return this.agentService.getAgentSessions(id);
+  }
+
+  @Get(':id/sessions/:sessionId')
+  async getSessionDetail(
+    @Param('id') id: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.agentService.getSessionDetail(id, sessionId);
+  }
+
+  @Delete(':id/sessions/:sessionId')
+  async deleteSession(
+    @Param('id') id: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.agentService.deleteSession(id, sessionId);
   }
 }

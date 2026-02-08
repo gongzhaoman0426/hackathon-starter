@@ -79,14 +79,6 @@ export class UpdateAgentDto {
   workflows?: string[];
 }
 
-export class ChatMessageDto {
-  @IsString()
-  role: 'user' | 'assistant';
-
-  @IsString()
-  content: string;
-}
-
 export class ChatWithAgentDto {
   @IsString()
   @IsNotEmpty()
@@ -95,12 +87,6 @@ export class ChatWithAgentDto {
   @IsString()
   @IsNotEmpty()
   sessionId: string;
-
-  @IsArray()
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => ChatMessageDto)
-  history?: ChatMessageDto[];
 
   @IsObject()
   @IsOptional()

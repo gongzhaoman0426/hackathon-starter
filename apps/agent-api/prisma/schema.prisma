@@ -18,6 +18,7 @@ model Agent {
   agentKnowledgeBases  AgentKnowledgeBase[]
   agentWorkflows       AgentWorkflow[]
   workflowAgents       WorkflowAgent[]
+  chatSessions         ChatSession[]
   createdById          String?
   isWorkflowGenerated  Boolean                @default(false)
   createdAt            DateTime               @default(now())
@@ -171,4 +172,29 @@ enum FileStatus {
   PROCESSING
   PROCESSED
   FAILED
+}
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  title     String        @default("新对话")
+  agentId   String
+  agentName String
+  agent     Agent         @relation(fields: [agentId], references: [id])
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  deleted   Boolean       @default(false)
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  role      String
+  content   String
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@map("chat_messages")
 }

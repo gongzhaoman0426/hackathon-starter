@@ -30,6 +30,10 @@ export const queryKeys = {
   knowledgeBaseFiles: (kbId: string) => [...queryKeys.all, 'knowledge-bases', kbId, 'files'] as const,
   knowledgeBaseQuery: (kbId: string) => [...queryKeys.all, 'knowledge-bases', kbId, 'query'] as const,
 
+  // 聊天会话相关查询
+  chatSessions: () => [...queryKeys.all, 'chat-sessions'] as const,
+  chatSession: (agentId: string, sessionId: string) => [...queryKeys.all, 'chat-sessions', agentId, sessionId] as const,
+
   // 统计数据相关查询
   dashboardStats: () => [...queryKeys.all, 'stats', 'dashboard'] as const,
 } as const;

@@ -8,12 +8,12 @@ import {
   DropdownMenuTrigger,
 } from '@workspace/ui/components/dropdown-menu'
 import { cn } from '@workspace/ui/lib/utils'
-import type { ChatSession } from '../../types'
+import type { ChatSessionSummary } from '../../types'
 import { useSidebar } from '../../hooks/use-sidebar'
 
 interface ChatSidebarHistoryItemProps {
-  session: ChatSession
-  onDelete: (id: string) => void
+  session: ChatSessionSummary
+  onDelete: (agentId: string, sessionId: string) => void
 }
 
 export function ChatSidebarHistoryItem({ session, onDelete }: ChatSidebarHistoryItemProps) {
@@ -23,7 +23,7 @@ export function ChatSidebarHistoryItem({ session, onDelete }: ChatSidebarHistory
   const isActive = location.pathname === `/chat/${session.id}`
 
   const handleDelete = () => {
-    onDelete(session.id)
+    onDelete(session.agentId, session.id)
     if (isActive) {
       navigate('/')
     }
@@ -39,7 +39,7 @@ export function ChatSidebarHistoryItem({ session, onDelete }: ChatSidebarHistory
       )}
     >
       <Link
-        to={`/chat/${session.id}`}
+        to={`/chat/${session.id}?agent=${session.agentId}`}
         onClick={closeMobile}
         className="flex-1 truncate px-2 py-1.5 text-sm"
       >

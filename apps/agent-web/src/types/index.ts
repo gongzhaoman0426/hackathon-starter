@@ -67,7 +67,8 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: string;
+  sessionId: string;
+  createdAt: string;
 }
 
 export interface ToolkitConfigDto {
@@ -88,7 +89,6 @@ export interface CreateAgentDto {
 export interface ChatWithAgentDto {
   message: string;
   sessionId: string;
-  history?: { role: 'user' | 'assistant'; content: string }[];
   context?: any;
   generateTitle?: boolean;
 }
@@ -151,6 +151,15 @@ export interface ChatSession {
   agentId: string;
   agentName: string;
   messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatSessionSummary {
+  id: string;
+  title: string;
+  agentId: string;
+  agentName: string;
   createdAt: string;
   updatedAt: string;
 }

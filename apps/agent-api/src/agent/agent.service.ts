@@ -272,6 +272,66 @@ export class AgentService {
     return agent;
   }
 
+  // ========== 会话 CRUD ==========
+
+  async getAllSessions() {
+    return this.prisma.chatSession.findMany({
+      where: { deleted: false },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        agentId: true,
+        agentName: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async getAgentSessions(agentId: string) {
+    return this.prisma.chatSession.findMany({
+      where: { agentId, deleted: false },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        agentId: true,
+        agentName: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async getSessionDetail(agentId: string, sessionId: string) {
+    const session = await this.prisma.chatSession.findFirst({
+      where: { id: sessionId, agentId, deleted: false },
+      include: {
+        messages: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!session) {
+      throw new NotFoundException(`Session ${sessionId} not found`);
+    }
+    return session;
+  }
+
+  async deleteSession(agentId: string, sessionId: string) {
+    const session = await this.prisma.chatSession.findFirst({
+      where: { id: sessionId, agentId, deleted: false },
+    });
+    if (!session) {
+      throw new NotFoundException(`Session ${sessionId} not found`);
+    }
+    return this.prisma.chatSession.update({
+      where: { id: sessionId },
+      data: { deleted: true },
+    });
+  }
+
+  // ========== 对话 ==========
+
   async chatWithAgent(agentId: string, chatDto: ChatWithAgentDto) {
     const startTime = Date.now();
 
@@ -280,16 +340,45 @@ export class AgentService {
     this.logger.log(`[Chat] Agent: ${agent.name} (${agentId})`);
     this.logger.log(`[Chat] User message: ${chatDto.message}`);
 
+    // 会话不存在则创建
+    let session = await this.prisma.chatSession.findUnique({
+      where: { id: chatDto.sessionId },
+    });
+    if (!session) {
+      session = await this.prisma.chatSession.create({
+        data: {
+          id: chatDto.sessionId,
+          agentId,
+          agentName: agent.name,
+        },
+      });
+    }
+
+    // 保存用户消息到 DB
+    await this.prisma.chatMessage.create({
+      data: {
+        role: 'user',
+        content: chatDto.message,
+        sessionId: chatDto.sessionId,
+      },
+    });
+
+    // 从 DB 加载历史消息（排除刚添加的当前用户消息）
+    const dbMessages = await this.prisma.chatMessage.findMany({
+      where: { sessionId: chatDto.sessionId },
+      orderBy: { createdAt: 'asc' },
+    });
+    // 排除最后一条（刚添加的用户消息）
+    const fullHistory = dbMessages.slice(0, -1).map((msg) => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    }));
+
     // 获取智能体的工具
     const tools = await this.toolsService.getAgentTools(agentId);
     this.logger.log(`[Chat] Available tools: ${tools.map((t: any) => t.metadata?.name || t.name).join(', ')}`);
 
     // 处理聊天记忆：裁剪历史 + RAG 检索 + 增强 prompt
-    const fullHistory = (chatDto.history || []).map((msg) => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content,
-    }));
-
     const { enhancedPrompt, recentHistory } =
       await this.chatMemoryService.processMemory(
         agentId,
@@ -312,6 +401,15 @@ export class AgentService {
     const elapsed = Date.now() - startTime;
     this.logger.log(`[Chat] Response (${elapsed}ms): ${response.data.result.substring(0, 200)}${response.data.result.length > 200 ? '...' : ''}`);
 
+    // 保存助手消息到 DB
+    await this.prisma.chatMessage.create({
+      data: {
+        role: 'assistant',
+        content: response.data.result,
+        sessionId: chatDto.sessionId,
+      },
+    });
+
     const result: any = {
       agentId,
       agentName: agent.name,
@@ -324,10 +422,20 @@ export class AgentService {
     // 第一次对话时生成标题
     if (chatDto.generateTitle) {
       try {
-        result.title = await this.generateTitle(chatDto.message);
+        const title = await this.generateTitle(chatDto.message);
+        await this.prisma.chatSession.update({
+          where: { id: chatDto.sessionId },
+          data: { title },
+        });
+        result.title = title;
       } catch (error) {
         this.logger.warn(`[Chat] Failed to generate title: ${error}`);
-        result.title = chatDto.message.slice(0, 50);
+        const fallbackTitle = chatDto.message.slice(0, 50);
+        await this.prisma.chatSession.update({
+          where: { id: chatDto.sessionId },
+          data: { title: fallbackTitle },
+        });
+        result.title = fallbackTitle;
       }
     }
 

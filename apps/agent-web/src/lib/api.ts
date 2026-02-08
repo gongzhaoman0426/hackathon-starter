@@ -5,6 +5,8 @@ import type {
   KnowledgeBase,
   CreateAgentDto,
   ChatWithAgentDto,
+  ChatSession,
+  ChatSessionSummary,
   GenerateDslDto,
   CreateWorkflowDto,
   ExecuteWorkflowDto,
@@ -124,6 +126,23 @@ class ApiClient {
 
   async chatWithAgent(id: string, data: ChatWithAgentDto): Promise<any> {
     return this.post<any>(`agents/${id}/chat`, data);
+  }
+
+  // Chat Session APIs
+  async getAllChatSessions(): Promise<ChatSessionSummary[]> {
+    return this.get<ChatSessionSummary[]>('agents/sessions/all');
+  }
+
+  async getAgentSessions(agentId: string): Promise<ChatSessionSummary[]> {
+    return this.get<ChatSessionSummary[]>(`agents/${agentId}/sessions`);
+  }
+
+  async getSession(agentId: string, sessionId: string): Promise<ChatSession> {
+    return this.get<ChatSession>(`agents/${agentId}/sessions/${sessionId}`);
+  }
+
+  async deleteSession(agentId: string, sessionId: string): Promise<void> {
+    return this.delete<void>(`agents/${agentId}/sessions/${sessionId}`);
   }
 
   // Toolkit APIs

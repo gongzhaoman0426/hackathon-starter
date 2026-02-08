@@ -1,16 +1,16 @@
 import { useMemo } from 'react'
 import { useChatSessions } from '../../hooks/use-chat-sessions'
 import { ChatSidebarHistoryItem } from './ChatSidebarHistoryItem'
-import type { ChatSession } from '../../types'
+import type { ChatSessionSummary } from '../../types'
 
-function groupByDate(sessions: ChatSession[]) {
+function groupByDate(sessions: ChatSessionSummary[]) {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterday = new Date(today.getTime() - 86400000)
   const weekAgo = new Date(today.getTime() - 7 * 86400000)
   const monthAgo = new Date(today.getTime() - 30 * 86400000)
 
-  const groups: { label: string; items: ChatSession[] }[] = [
+  const groups: { label: string; items: ChatSessionSummary[] }[] = [
     { label: '今天', items: [] },
     { label: '昨天', items: [] },
     { label: '最近 7 天', items: [] },

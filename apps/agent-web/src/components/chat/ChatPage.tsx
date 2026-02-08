@@ -1,26 +1,33 @@
 import { useState, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useChatSessions, useChatSession } from '../../hooks/use-chat-sessions'
+import { useQueryClient } from '@tanstack/react-query'
+import { useChatSession } from '../../hooks/use-chat-sessions'
 import { useChatWithAgent, useAgents } from '../../services/agent.service'
-import { chatStorage } from '../../lib/chat-storage'
+import { queryKeys } from '../../lib/query-keys'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
 import type { ChatMessage } from '../../types'
 
+const LAST_AGENT_KEY = 'last-agent-id'
+
 export function ChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { createSession, addMessage } = useChatSessions()
-  const session = useChatSession(sessionId)
+  const queryClient = useQueryClient()
   const chatMutation = useChatWithAgent()
   const { data: agents = [] } = useAgents()
 
   const agentFromUrl = searchParams.get('agent') || ''
-  const lastAgentId = chatStorage.getLastAgentId()
+  const lastAgentId = localStorage.getItem(LAST_AGENT_KEY)
   const [selectedAgentId, setSelectedAgentId] = useState(
-    () => session?.agentId || agentFromUrl || lastAgentId || ''
+    () => agentFromUrl || lastAgentId || ''
+  )
+
+  const { data: session } = useChatSession(
+    agentFromUrl || selectedAgentId || undefined,
+    sessionId,
   )
 
   const currentAgentId = session?.agentId || selectedAgentId
@@ -30,7 +37,7 @@ export function ChatPage() {
   const handleAgentChange = useCallback(
     (agentId: string) => {
       setSelectedAgentId(agentId)
-      chatStorage.setLastAgentId(agentId)
+      localStorage.setItem(LAST_AGENT_KEY, agentId)
     },
     []
   )
@@ -40,67 +47,83 @@ export function ChatPage() {
       if (!currentAgentId) return
 
       let activeSessionId = sessionId
-
-      // Create session on first message
-      if (!activeSessionId) {
-        const agentName = currentAgent?.name || '智能体'
-        const newSession = createSession(currentAgentId, agentName)
-        activeSessionId = newSession.id
-        navigate(`/chat/${newSession.id}`, { replace: true })
-      }
-
       const isFirstMessage = !sessionId
 
+      // 首次消息：前端生成 sessionId，导航到新会话
+      if (!activeSessionId) {
+        activeSessionId = crypto.randomUUID()
+        navigate(`/chat/${activeSessionId}?agent=${currentAgentId}`, { replace: true })
+      }
+
+      // 乐观更新：立即显示用户消息
       const userMessage: ChatMessage = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         role: 'user',
         content,
-        timestamp: new Date().toISOString(),
+        sessionId: activeSessionId,
+        createdAt: new Date().toISOString(),
       }
-      addMessage(activeSessionId, userMessage)
+
+      const sessionQueryKey = queryKeys.chatSession(currentAgentId, activeSessionId)
+      queryClient.setQueryData(sessionQueryKey, (old: any) => {
+        if (!old) {
+          return {
+            id: activeSessionId,
+            title: '新对话',
+            agentId: currentAgentId,
+            agentName: currentAgent?.name || '智能体',
+            messages: [userMessage],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return { ...old, messages: [...old.messages, userMessage] }
+      })
 
       try {
-        // 获取当前会话的历史消息，传递给后端以保持上下文
-        const currentMessages = chatStorage.getSession(activeSessionId)?.messages || []
-        // 排除刚添加的用户消息（已在 message 字段中），只传之前的历史
-        const history = currentMessages.slice(0, -1).map((m) => ({
-          role: m.role,
-          content: m.content,
-        }))
-
         const response = await chatMutation.mutateAsync({
           id: currentAgentId,
           data: {
             message: content,
             sessionId: activeSessionId,
-            history,
             context: {},
             generateTitle: isFirstMessage,
           },
         })
 
+        // 乐观更新：追加助手回复
         const assistantMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
+          id: crypto.randomUUID(),
           role: 'assistant',
           content: response.response,
-          timestamp: new Date().toISOString(),
+          sessionId: activeSessionId,
+          createdAt: new Date().toISOString(),
         }
-        addMessage(activeSessionId, assistantMessage)
+        queryClient.setQueryData(sessionQueryKey, (old: any) => {
+          if (!old) return old
+          return { ...old, messages: [...old.messages, assistantMessage] }
+        })
 
-        if (isFirstMessage && response.title) {
-          chatStorage.updateSessionTitle(activeSessionId, response.title)
+        // 首次消息后刷新侧边栏会话列表（标题已生成）
+        if (isFirstMessage) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.chatSessions() })
         }
       } catch {
+        // 乐观更新：追加错误消息
         const errorMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
+          id: crypto.randomUUID(),
           role: 'assistant',
           content: '抱歉，发生了错误，请稍后重试。',
-          timestamp: new Date().toISOString(),
+          sessionId: activeSessionId,
+          createdAt: new Date().toISOString(),
         }
-        addMessage(activeSessionId, errorMessage)
+        queryClient.setQueryData(sessionQueryKey, (old: any) => {
+          if (!old) return old
+          return { ...old, messages: [...old.messages, errorMessage] }
+        })
       }
     },
-    [currentAgentId, sessionId, currentAgent, createSession, addMessage, navigate, chatMutation]
+    [currentAgentId, sessionId, currentAgent, navigate, chatMutation, queryClient]
   )
 
   return (
