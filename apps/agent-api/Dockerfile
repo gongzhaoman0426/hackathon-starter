@@ -49,7 +49,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm prisma@5.10.2
 
 # 从 builder 复制构建产物和依赖（已包含生成好的 Prisma 客户端）
 COPY --from=builder /app/apps/agent-api/dist ./apps/agent-api/dist
