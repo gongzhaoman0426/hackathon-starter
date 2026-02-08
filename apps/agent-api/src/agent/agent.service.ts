@@ -324,6 +324,10 @@ export class AgentService {
     if (!session) {
       throw new NotFoundException(`Session ${sessionId} not found`);
     }
+
+    // 删除该 session 在向量库中的记忆
+    await this.chatMemoryService.deleteSessionMemory(agentId, sessionId);
+
     return this.prisma.chatSession.update({
       where: { id: sessionId },
       data: { deleted: true },

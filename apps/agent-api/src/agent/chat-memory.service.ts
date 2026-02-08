@@ -154,6 +154,25 @@ export class ChatMemoryService {
   }
 
   /**
+   * 删除指定 session 的所有向量化记忆
+   */
+  async deleteSessionMemory(agentId: string, sessionId: string): Promise<void> {
+    try {
+      const collection = this.getCollectionName(agentId);
+      const result = await this.prisma.$executeRawUnsafe(
+        `DELETE FROM public.llamaindex_embedding WHERE collection = $1 AND metadata->>'session_id' = $2 AND metadata->>'type' = 'chat_memory'`,
+        collection,
+        sessionId,
+      );
+      this.logger.log(
+        `[deleteSessionMemory] 删除 session=${sessionId} 的 ${result} 条向量记忆`,
+      );
+    } catch (error) {
+      this.logger.error(`[deleteSessionMemory] 删除失败: ${error}`);
+    }
+  }
+
+  /**
    * 异步向量化较早的 Q&A 对（不阻塞响应）
    */
   async vectorizeOlderPairs(
