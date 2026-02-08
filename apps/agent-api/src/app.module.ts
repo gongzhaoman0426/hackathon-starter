@@ -8,6 +8,7 @@ import { WorkflowModule } from './workflow/workflow.module';
 import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
 import { ConfigModule } from '@nestjs/config';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { HealthModule } from './health/health.module';
       isGlobal: true,
     }),
     PrismaModule,
+    AuthModule,
     ToolsModule,
     WorkflowModule,
     AgentModule,

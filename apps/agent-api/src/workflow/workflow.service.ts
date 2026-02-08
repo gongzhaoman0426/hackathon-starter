@@ -457,7 +457,7 @@ const classification = JSON.parse(resultString); // 如果需要结构化数据�
     return workflow;
   }
 
-  async createWorkflow(createWorkflowDto: CreateWorkflowDto) {
+  async createWorkflow(createWorkflowDto: CreateWorkflowDto, userId: string) {
     // 验证 DSL 格式
     this.validateDsl(createWorkflowDto.dsl);
 
@@ -467,20 +467,27 @@ const classification = JSON.parse(resultString); // 如果需要结构化数据�
         name: createWorkflowDto.name,
         description: createWorkflowDto.description || '',
         DSL: createWorkflowDto.dsl,
+        createdById: userId,
       },
     });
 
     return workflow;
   }
 
-  async getAllWorkflows() {
+  async getAllWorkflows(userId: string) {
     return this.prismaService.workFlow.findMany({
-      where: { deleted: false },
+      where: {
+        deleted: false,
+        OR: [
+          { createdById: userId },
+          { source: 'code' },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getWorkflow(id: string) {
+  async getWorkflow(id: string, userId?: string) {
     const workflow = await this.prismaService.workFlow.findUnique({
       where: { id, deleted: false },
     });
@@ -489,12 +496,17 @@ const classification = JSON.parse(resultString); // 如果需要结构化数据�
       throw new NotFoundException(`Workflow with id ${id} not found`);
     }
 
+    // code 类型工作流对所有用户可见，api 类型验证归属
+    if (userId && workflow.source !== 'code' && workflow.createdById !== userId) {
+      throw new NotFoundException(`Workflow with id ${id} not found`);
+    }
+
     return workflow;
   }
 
-  async executeWorkflow(id: string, input: any, context: any = {}) {
+  async executeWorkflow(id: string, input: any, context: any = {}, userId?: string) {
     // 获取工作流
-    const workflowRecord = await this.getWorkflow(id);
+    const workflowRecord = await this.getWorkflow(id, userId);
 
     // 从 DSL 创建工作流实例，传入工作流 ID 以支持智能体持久化
     const workflow = await this.fromDsl(workflowRecord.DSL, id);
@@ -582,9 +594,9 @@ const classification = JSON.parse(resultString); // 如果需要结构化数据�
 
 
 
-  async deleteWorkflow(id: string) {
+  async deleteWorkflow(id: string, userId: string) {
     // 验证工作流存在
-    const workflow = await this.getWorkflow(id);
+    const workflow = await this.getWorkflow(id, userId);
 
     // 安全兜底：防止删除代码定义的工作流
     if ((workflow as any).source === 'code') {

@@ -4,6 +4,8 @@ import { IsString, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
 import { WorkflowDiscoveryService } from './workflow-discovery.service';
 import { WorkflowService } from './workflow.service';
 import dslSchema from './DSL_schema/dsl_schema_v1.json';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { CurrentUserPayload } from '../auth/auth.type';
 
 export class CreateWorkflowDslDto {
   @IsString()
@@ -77,30 +79,41 @@ export class WorkflowController {
   }
 
   @Post()
-  async createWorkflow(@Body() createWorkflowDto: CreateWorkflowDto) {
-    return this.workflowService.createWorkflow(createWorkflowDto);
+  async createWorkflow(
+    @Body() createWorkflowDto: CreateWorkflowDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.workflowService.createWorkflow(createWorkflowDto, user.userId);
   }
 
   @Get()
-  async getAllWorkflows() {
-    return this.workflowService.getAllWorkflows();
+  async getAllWorkflows(@CurrentUser() user: CurrentUserPayload) {
+    return this.workflowService.getAllWorkflows(user.userId);
   }
 
   @Get(':id')
-  async getWorkflow(@Param('id') id: string) {
-    return this.workflowService.getWorkflow(id);
+  async getWorkflow(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.workflowService.getWorkflow(id, user.userId);
   }
 
   @Post(':id/execute')
   async executeWorkflow(
     @Param('id') id: string,
     @Body() executeDto: ExecuteWorkflowDto,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.workflowService.executeWorkflow(id, executeDto.input, executeDto.context);
+    return this.workflowService.executeWorkflow(id, executeDto.input, executeDto.context, user.userId);
   }
 
   @Get(':id/agents')
-  async getWorkflowAgents(@Param('id') id: string) {
+  async getWorkflowAgents(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    await this.workflowService.getWorkflow(id, user.userId);
     return this.workflowService.getWorkflowAgents(id);
   }
 
@@ -109,20 +122,25 @@ export class WorkflowController {
     @Param('id') workflowId: string,
     @Param('agentName') agentName: string,
     @Body() updateDto: UpdateWorkflowAgentDto,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
+    await this.workflowService.getWorkflow(workflowId, user.userId);
     return this.workflowService.updateWorkflowAgent(workflowId, agentName, updateDto);
   }
 
 
 
   @Delete(':id')
-  async deleteWorkflow(@Param('id') id: string) {
+  async deleteWorkflow(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     if (this.workflowDiscoveryService.isCodeWorkflow(id)) {
       throw new ForbiddenException('Cannot delete a code-defined workflow');
     }
     // 先清理关联的智能体
     await this.workflowService.deleteWorkflowAgents(id);
     // 再删除工作流
-    return this.workflowService.deleteWorkflow(id);
+    return this.workflowService.deleteWorkflow(id, user.userId);
   }
 }

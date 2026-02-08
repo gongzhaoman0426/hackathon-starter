@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 
 import { ToolsService } from '../tool/tools.service';
 
@@ -18,11 +18,12 @@ export class AgentService {
     private readonly chatMemoryService: ChatMemoryService,
   ) {}
 
-  async findAll() {
+  async findAll(userId: string) {
     return this.prisma.agent.findMany({
       where: {
         deleted: false,
-        isWorkflowGenerated: false  // 只返回用户创建的智能体，隐藏工作流生成的智能体
+        isWorkflowGenerated: false,
+        createdById: userId,
       },
       include: {
         agentToolkits: {
@@ -48,7 +49,7 @@ export class AgentService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string) {
     const agent = await this.prisma.agent.findUnique({
       where: { id, deleted: false },
       include: {
@@ -83,10 +84,15 @@ export class AgentService {
       throw new NotFoundException(`Agent with ID ${id} not found`);
     }
 
+    // 验证归属（工作流生成的智能体跳过验证）
+    if (userId && !agent.isWorkflowGenerated && agent.createdById !== userId) {
+      throw new ForbiddenException('无权访问此智能体');
+    }
+
     return agent;
   }
 
-  async create(createAgentDto: CreateAgentDto) {
+  async create(createAgentDto: CreateAgentDto, userId: string) {
     // 创建智能体
     const agent = await this.prisma.agent.create({
       data: {
@@ -94,6 +100,7 @@ export class AgentService {
         description: createAgentDto.description,
         prompt: createAgentDto.prompt,
         options: createAgentDto.options,
+        createdById: userId,
       },
     });
 
@@ -207,11 +214,11 @@ export class AgentService {
     }
   }
 
-  async update(id: string, updateAgentDto: UpdateAgentDto) {
-    await this.findOne(id);
+  async update(id: string, updateAgentDto: UpdateAgentDto, userId: string) {
+    await this.findOne(id, userId);
 
     // 更新智能体基本信息
-    const agent = await this.prisma.agent.update({
+    await this.prisma.agent.update({
       where: { id },
       data: {
         name: updateAgentDto.name,
@@ -245,11 +252,11 @@ export class AgentService {
       await this.assignWorkflowsToAgent(id, updateAgentDto);
     }
 
-    return this.findOne(id);
+    return this.findOne(id, userId);
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, userId: string) {
+    await this.findOne(id, userId);
 
     return this.prisma.agent.update({
       where: { id },
@@ -274,9 +281,12 @@ export class AgentService {
 
   // ========== 会话 CRUD ==========
 
-  async getAllSessions() {
+  async getAllSessions(userId: string) {
     return this.prisma.chatSession.findMany({
-      where: { deleted: false },
+      where: {
+        deleted: false,
+        userId,
+      },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -289,9 +299,10 @@ export class AgentService {
     });
   }
 
-  async getAgentSessions(agentId: string) {
+  async getAgentSessions(agentId: string, userId: string) {
+    await this.findOne(agentId, userId);
     return this.prisma.chatSession.findMany({
-      where: { agentId, deleted: false },
+      where: { agentId, deleted: false, userId },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -304,9 +315,10 @@ export class AgentService {
     });
   }
 
-  async getSessionDetail(agentId: string, sessionId: string) {
+  async getSessionDetail(agentId: string, sessionId: string, userId: string) {
+    await this.findOne(agentId, userId);
     const session = await this.prisma.chatSession.findFirst({
-      where: { id: sessionId, agentId, deleted: false },
+      where: { id: sessionId, agentId, deleted: false, userId },
       include: {
         messages: { orderBy: { createdAt: 'asc' } },
       },
@@ -317,9 +329,10 @@ export class AgentService {
     return session;
   }
 
-  async deleteSession(agentId: string, sessionId: string) {
+  async deleteSession(agentId: string, sessionId: string, userId: string) {
+    await this.findOne(agentId, userId);
     const session = await this.prisma.chatSession.findFirst({
-      where: { id: sessionId, agentId, deleted: false },
+      where: { id: sessionId, agentId, deleted: false, userId },
     });
     if (!session) {
       throw new NotFoundException(`Session ${sessionId} not found`);
@@ -336,11 +349,11 @@ export class AgentService {
 
   // ========== 对话 ==========
 
-  async chatWithAgent(agentId: string, chatDto: ChatWithAgentDto) {
+  async chatWithAgent(agentId: string, chatDto: ChatWithAgentDto, userId: string) {
     const startTime = Date.now();
 
     // 获取智能体信息
-    const agent = await this.findOne(agentId);
+    const agent = await this.findOne(agentId, userId);
     this.logger.log(`[Chat] Agent: ${agent.name} (${agentId})`);
     this.logger.log(`[Chat] User message: ${chatDto.message}`);
 
@@ -354,6 +367,7 @@ export class AgentService {
           id: chatDto.sessionId,
           agentId,
           agentName: agent.name,
+          userId,
         },
       });
     }
@@ -456,11 +470,11 @@ export class AgentService {
     return result;
   }
 
-  async *chatWithAgentStream(agentId: string, chatDto: ChatWithAgentDto) {
+  async *chatWithAgentStream(agentId: string, chatDto: ChatWithAgentDto, userId: string) {
     const startTime = Date.now();
 
     // 获取智能体信息
-    const agent = await this.findOne(agentId);
+    const agent = await this.findOne(agentId, userId);
     this.logger.log(`[ChatStream] Agent: ${agent.name} (${agentId})`);
     this.logger.log(`[ChatStream] User message: ${chatDto.message}`);
 
@@ -474,6 +488,7 @@ export class AgentService {
           id: chatDto.sessionId,
           agentId,
           agentName: agent.name,
+          userId,
         },
       });
     }
@@ -595,8 +610,8 @@ export class AgentService {
     return reply.trim().slice(0, 50);
   }
 
-  async getAgentToolkits(agentId: string) {
-    await this.findOne(agentId); // 验证智能体存在
+  async getAgentToolkits(agentId: string, userId: string) {
+    await this.findOne(agentId, userId);
 
     return this.prisma.agentToolkit.findMany({
       where: { agentId },

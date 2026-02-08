@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Plus, Bot, Wrench, GitBranch, BookOpen } from 'lucide-react'
+import { Plus, Bot, Wrench, GitBranch, BookOpen, LogOut } from 'lucide-react'
 import { Button } from '@workspace/ui/components/button'
 import { Separator } from '@workspace/ui/components/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
 import { cn } from '@workspace/ui/lib/utils'
 import { useSidebar } from '../../hooks/use-sidebar'
+import { useAuth } from '../../hooks/use-auth'
 import { ChatSidebarHistory } from './ChatSidebarHistory'
 
 const manageNav = [
@@ -17,6 +18,7 @@ const manageNav = [
 export function ChatSidebar() {
   const { open, setOpen, closeMobile } = useSidebar()
   const location = useLocation()
+  const { user, logout } = useAuth()
 
   return (
     <>
@@ -100,9 +102,20 @@ export function ChatSidebar() {
 
         {/* Footer */}
         <div className="shrink-0 px-4 py-3">
-          <p className="text-xs text-sidebar-foreground/50 text-center">
-            智能体平台 v1.0
-          </p>
+          <div className="flex items-center justify-between">
+            <span className="truncate text-xs text-sidebar-foreground/70">
+              {user?.username}
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-7" onClick={logout}>
+                  <LogOut size={14} />
+                  <span className="sr-only">退出登录</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>退出登录</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
       </aside>
     </>

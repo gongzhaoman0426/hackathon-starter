@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
 model Agent {
   id                   String                 @id @default(cuid())
   name                 String
@@ -83,11 +93,12 @@ model AgentTool {
 }
 
 model WorkFlow {
-  id        String   @id @default(cuid())
-  name      String
+  id          String   @id @default(cuid())
+  name        String
   description String?
-  DSL       Json
+  DSL         Json
   source      String   @default("api")
+  createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deleted     Boolean  @default(false)
@@ -179,6 +190,7 @@ model ChatSession {
   title     String        @default("新对话")
   agentId   String
   agentName String
+  userId    String?
   agent     Agent         @relation(fields: [agentId], references: [id])
   messages  ChatMessage[]
   createdAt DateTime      @default(now())

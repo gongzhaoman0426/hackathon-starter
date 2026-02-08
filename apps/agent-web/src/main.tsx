@@ -6,16 +6,19 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import App from './App.tsx'
 import { queryClient } from './lib/query-client'
 import { SidebarProvider } from './hooks/use-sidebar'
+import { AuthProvider } from './hooks/use-auth'
 import "@workspace/ui/globals.css"
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <SidebarProvider>
-          <App />
-          <ReactQueryDevtools initialIsOpen={false} />
-        </SidebarProvider>
+        <AuthProvider>
+          <SidebarProvider>
+            <App />
+            <ReactQueryDevtools initialIsOpen={false} />
+          </SidebarProvider>
+        </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,

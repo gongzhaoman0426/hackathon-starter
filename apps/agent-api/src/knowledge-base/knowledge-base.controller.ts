@@ -8,7 +8,6 @@ import {
   Param,
   UseInterceptors,
   UploadedFile,
-  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { KnowledgeBaseService } from './knowledge-base.service';
@@ -19,31 +18,33 @@ import {
   RemoveKnowledgeBaseFromAgentDto,
   ChatWithKnowledgeBaseDto,
 } from './knowledge-base.type';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { CurrentUserPayload } from '../auth/auth.type';
 
 @Controller('knowledge-base')
 export class KnowledgeBaseController {
   constructor(private readonly knowledgeBaseService: KnowledgeBaseService) {}
 
   @Get()
-  async getAllKnowledgeBases(@Query('userId') userId?: string) {
-    return this.knowledgeBaseService.getAllKnowledgeBases(userId);
+  async getAllKnowledgeBases(@CurrentUser() user: CurrentUserPayload) {
+    return this.knowledgeBaseService.getAllKnowledgeBases(user.userId);
   }
 
   @Get(':id')
   async getKnowledgeBase(
     @Param('id') id: string,
-    @Query('userId') userId?: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.knowledgeBaseService.getKnowledgeBase(userId, id);
+    return this.knowledgeBaseService.getKnowledgeBase(user.userId, id);
   }
 
   @Post()
   async createKnowledgeBase(
     @Body() createKnowledgeBaseDto: CreateKnowledgeBaseDto,
-    @Query('userId') userId?: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.knowledgeBaseService.createKnowledgeBase(
-      userId,
+      user.userId,
       createKnowledgeBaseDto.name,
       createKnowledgeBaseDto.description || '',
     );
@@ -53,10 +54,10 @@ export class KnowledgeBaseController {
   async updateKnowledgeBase(
     @Param('id') id: string,
     @Body() updateKnowledgeBaseDto: UpdateKnowledgeBaseDto,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
     await this.knowledgeBaseService.updateKnowledgeBase(
-      userId,
+      user.userId,
       id,
       updateKnowledgeBaseDto,
     );
@@ -66,9 +67,9 @@ export class KnowledgeBaseController {
   @Delete(':id')
   async deleteKnowledgeBase(
     @Param('id') id: string,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    await this.knowledgeBaseService.deleteKnowledgeBase(userId, id);
+    await this.knowledgeBaseService.deleteKnowledgeBase(user.userId, id);
     return { message: 'Knowledge base deleted successfully' };
   }
 
@@ -77,10 +78,10 @@ export class KnowledgeBaseController {
   async uploadFile(
     @Param('id') id: string,
     @UploadedFile() file: any,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
     const uploadedFile = await this.knowledgeBaseService.uploadFile(
-      userId,
+      user.userId,
       id,
       file,
     );
@@ -93,28 +94,28 @@ export class KnowledgeBaseController {
   @Get(':id/files')
   async getFiles(
     @Param('id') id: string,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.knowledgeBaseService.getFiles(userId, id);
+    return this.knowledgeBaseService.getFiles(user.userId, id);
   }
 
   @Get(':id/files/:fileId')
   async getFileStatus(
     @Param('id') id: string,
     @Param('fileId') fileId: string,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.knowledgeBaseService.getFileStatus(userId, id, fileId);
+    return this.knowledgeBaseService.getFileStatus(user.userId, id, fileId);
   }
 
   @Post(':id/files/:fileId/train')
   async trainFile(
     @Param('id') id: string,
     @Param('fileId') fileId: string,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
     const result = await this.knowledgeBaseService.trainFile(
-      userId,
+      user.userId,
       id,
       fileId,
     );
@@ -128,9 +129,9 @@ export class KnowledgeBaseController {
   async deleteFile(
     @Param('id') id: string,
     @Param('fileId') fileId: string,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    await this.knowledgeBaseService.deleteFile(userId, id, fileId);
+    await this.knowledgeBaseService.deleteFile(user.userId, id, fileId);
     return { message: 'File deleted successfully' };
   }
 
@@ -146,10 +147,10 @@ export class KnowledgeBaseController {
   async linkToAgent(
     @Param('id') id: string,
     @Body() body: AddKnowledgeBaseToAgentDto,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.knowledgeBaseService.linkKnowledgeBaseToAgent(
-      userId,
+      user.userId,
       id,
       body.agentId,
     );
@@ -159,10 +160,10 @@ export class KnowledgeBaseController {
   async unlinkFromAgent(
     @Param('id') id: string,
     @Body() body: RemoveKnowledgeBaseFromAgentDto,
-    @Query('userId') userId: string,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.knowledgeBaseService.unlinkKnowledgeBaseFromAgent(
-      userId,
+      user.userId,
       id,
       body.agentId,
     );

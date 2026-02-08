@@ -17,6 +17,18 @@ import type {
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
+const TOKEN_KEY = 'auth_token';
+
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function clearAuth() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('auth_user');
+  window.location.href = '/login';
+}
+
 interface ApiResponse<T> {
   data: T;
   message?: string;
@@ -35,17 +47,35 @@ interface PaginatedResponse<T> {
 export type { ApiResponse, PaginatedResponse };
 
 class ApiClient {
+  private getAuthHeaders(): Record<string, string> {
+    const token = getToken();
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+    return {};
+  }
+
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+
+    const isFormData = options?.body instanceof FormData;
+    const defaultHeaders: Record<string, string> = isFormData
+      ? { ...this.getAuthHeaders() }
+      : { 'Content-Type': 'application/json', ...this.getAuthHeaders() };
 
     try {
       const response = await fetch(url, {
         headers: {
-          'Content-Type': 'application/json',
+          ...defaultHeaders,
           ...options?.headers,
         },
         ...options,
       });
+
+      if (response.status === 401) {
+        clearAuth();
+        throw new Error('登录已过期，请重新登录');
+      }
 
       if (!response.ok) {
         let errorMessage = `HTTP ${response.status}`;
@@ -136,9 +166,16 @@ class ApiClient {
     const url = `${API_BASE_URL}/agents/${id}/chat/stream`;
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
+      },
       body: JSON.stringify(data),
     });
+    if (res.status === 401) {
+      clearAuth();
+      throw new Error('登录已过期，请重新登录');
+    }
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
       try { const e = await res.json(); msg = e.message || msg; } catch { /* ignore */ }
@@ -254,7 +291,6 @@ class ApiClient {
     return this.request<any>(`knowledge-base/${knowledgeBaseId}/files`, {
       method: 'POST',
       body: formData,
-      headers: {}, // 不设置 Content-Type，让浏览器自动设置
     });
   }
 
