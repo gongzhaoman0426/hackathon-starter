@@ -305,5 +305,3 @@ docker compose logs -f agent-api      # 查看后端日志
 ## 许可证
 
 本项目采用 MIT 许可证。
-
-agent-api 和 agent-web 暂不采用 MIT 许可证，后续将移植到单独的仓库，规划采用主流工作流框架相同的许可方式。
