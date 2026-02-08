@@ -141,7 +141,7 @@ export class ToolkitsService implements OnModuleInit {
     }
   }
 
-  async getToolkitInstance(toolkitId: string, settings: any): Promise<Toolkit> {
+  async getToolkitInstance(toolkitId: string, settings: any, agentId: string): Promise<Toolkit> {
     const ToolkitClass = this.getToolkitClass(toolkitId);
     if (!ToolkitClass) {
       throw new Error(`Unknown toolkit type: ${toolkitId}`);
@@ -149,6 +149,7 @@ export class ToolkitsService implements OnModuleInit {
 
     const toolkitInstance = await this.moduleRef.get(ToolkitClass);
     await toolkitInstance.applySettings(settings);
+    toolkitInstance.setAgentContext(agentId);
 
     return toolkitInstance;
   }
@@ -163,9 +164,31 @@ export class ToolkitsService implements OnModuleInit {
       include: { toolkit: true },
     });
 
+    // 查询 agent 的创建者
+    const agent = await this.prismaService.agent.findUnique({
+      where: { id: agentId },
+      select: { createdById: true },
+    });
+    const userId = agent?.createdById;
+
+    // 批量查询用户的 toolkit settings
+    let userSettingsMap: Record<string, any> = {};
+    if (userId) {
+      const userSettings = await this.prismaService.userToolkitSettings.findMany({
+        where: { userId, toolkitId: { in: agentToolkits.map(at => at.toolkitId) } },
+      });
+      userSettingsMap = Object.fromEntries(
+        userSettings.map(us => [us.toolkitId, us.settings]),
+      );
+    }
+
     return Promise.all(
       agentToolkits.map((at) =>
-        this.getToolkitInstance(at.toolkit.id, at.settings),
+        this.getToolkitInstance(
+          at.toolkit.id,
+          userSettingsMap[at.toolkitId] || {},
+          agentId,
+        ),
       ),
     );
   }
@@ -250,6 +273,21 @@ export class ToolkitsService implements OnModuleInit {
         },
       },
       data: { settings: updatedSettings },
+    });
+  }
+
+  async getUserToolkitSettings(userId: string, toolkitId: string): Promise<any> {
+    const record = await this.prismaService.userToolkitSettings.findUnique({
+      where: { userId_toolkitId: { userId, toolkitId } },
+    });
+    return record?.settings || {};
+  }
+
+  async updateUserToolkitSettings(userId: string, toolkitId: string, settings: any): Promise<any> {
+    return this.prismaService.userToolkitSettings.upsert({
+      where: { userId_toolkitId: { userId, toolkitId } },
+      update: { settings },
+      create: { userId, toolkitId, settings },
     });
   }
 

@@ -10,7 +10,7 @@ export class WorkflowToolkit extends BaseToolkit {
   name = 'Workflow Toolkit';
   description = '工作流工具包，允许智能体发现和执行工作流';
   tools: ToolsType[] = [];
-  settings = { agentId: '' };
+  settings = {};
   private readonly logger = new Logger(WorkflowToolkit.name);
   private lastAgentId: string | null = null;
 
@@ -61,7 +61,7 @@ export class WorkflowToolkit extends BaseToolkit {
   }
 
   async getTools(): Promise<ToolsType[]> {
-    const agentId = this.settings.agentId as string;
+    const agentId = this.agentId as string;
 
     if (this.lastAgentId === agentId && this.tools.length > 0) {
       return this.tools;
@@ -134,8 +134,6 @@ export class WorkflowToolkit extends BaseToolkit {
   }
 
   validateSettings(): void {
-    if (!this.settings.agentId) {
-      throw new Error('agentId is required');
-    }
+    // agentId 由 setAgentContext 设置，不再通过 settings 校验
   }
 }

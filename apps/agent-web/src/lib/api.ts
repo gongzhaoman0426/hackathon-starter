@@ -238,6 +238,14 @@ class ApiClient {
     return this.get<Toolkit[]>('toolkits');
   }
 
+  async getToolkitSettings(toolkitId: string): Promise<any> {
+    return this.get<any>(`toolkits/${toolkitId}/settings`);
+  }
+
+  async updateToolkitSettings(toolkitId: string, settings: any): Promise<any> {
+    return this.put<any>(`toolkits/${toolkitId}/settings`, { settings });
+  }
+
   // Workflow APIs
   async getWorkflows(): Promise<Workflow[]> {
     return this.get<Workflow[]>('workflows');

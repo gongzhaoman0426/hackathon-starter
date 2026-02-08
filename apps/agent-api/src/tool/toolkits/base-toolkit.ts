@@ -10,6 +10,9 @@ export abstract class BaseToolkit implements Toolkit {
   abstract tools: ToolsType[];
   abstract validateSettings(): void;
 
+  // agentId 独立存储，不再混在 settings 中
+  protected agentId: string = '';
+
   protected llamaindexService = new LlamaindexService()
   private initPromise: Promise<void> | null = null;
   private isInitialized = false;
@@ -34,13 +37,15 @@ export abstract class BaseToolkit implements Toolkit {
     }
   }
 
+  setAgentContext(agentId: string): void {
+    this.agentId = agentId;
+  }
+
   applySettings(settings: Settings): void {
-    const { agentId, ...otherSettings } = settings;
-    this.settings.agentId = agentId;
-    for (const key in otherSettings) {
-      if (Object.prototype.hasOwnProperty.call(otherSettings, key)) {
+    for (const key in settings) {
+      if (Object.prototype.hasOwnProperty.call(settings, key)) {
         if (key in this.settings) {
-          this.settings[key] = otherSettings[key];
+          this.settings[key] = settings[key];
         } else {
           throw new Error(`Invalid setting: ${key}`);
         }

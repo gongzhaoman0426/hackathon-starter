@@ -17,6 +17,7 @@ export const queryKeys = {
   toolkits: (params?: Record<string, unknown>) => [...queryKeys.all, 'toolkits', params] as const,
   toolkit: (id: string) => [...queryKeys.all, 'toolkits', id] as const,
   toolkitTools: (toolkitId: string) => [...queryKeys.all, 'toolkits', toolkitId, 'tools'] as const,
+  toolkitSettings: (toolkitId: string) => [...queryKeys.all, 'toolkits', toolkitId, 'settings'] as const,
 
   // 工作流相关查询
   workflows: (params?: Record<string, unknown>) => [...queryKeys.all, 'workflows', params] as const,

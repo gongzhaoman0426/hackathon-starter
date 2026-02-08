@@ -28,16 +28,26 @@ export class ToolsService {
     return tools;
   }
 
-  async getToolByName(name: string, toolkitSettings?: any) {
+  async getToolByName(name: string, userId?: string) {
     const tool = await this.prismaService.tool.findUnique({
       where: { name },
       include: { toolkit: true },
     });
     if (!tool) throw new NotFoundException(`Tool ${name} not found`);
 
+    // 有 userId 时查用户级 settings，否则用 toolkit 默认 settings
+    let settings = tool.toolkit.settings || {};
+    if (userId) {
+      const userSettings = await this.toolkitsService.getUserToolkitSettings(userId, tool.toolkitId);
+      if (Object.keys(userSettings).length > 0) {
+        settings = userSettings;
+      }
+    }
+
     const toolkit = await this.toolkitsService.getToolkitInstance(
       tool.toolkitId,
-      toolkitSettings || tool.toolkit.settings || {},
+      settings,
+      '',
     );
     const tools = await toolkit.getTools();
     const instancedTool = tools.find((t) => t.metadata.name === name);

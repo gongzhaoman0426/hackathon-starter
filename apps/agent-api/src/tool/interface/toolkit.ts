@@ -12,5 +12,6 @@ export interface Toolkit {
   settings: Settings;
   tools: ToolsType[];
   applySettings(settings: Prisma.JsonValue): void;
+  setAgentContext(agentId: string): void;
   getTools(): Promise<ToolsType[]>;
 }

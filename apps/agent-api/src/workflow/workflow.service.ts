@@ -20,13 +20,13 @@ export class WorkflowService {
     private readonly prismaService: PrismaService,
   ) {}
 
-  async fromDsl(dsl: any, workflowId?: string): Promise<Workflow> {
+  async fromDsl(dsl: any, workflowId?: string, userId?: string): Promise<Workflow> {
     const workflow = new Workflow<any, any, any>(this.eventBus, {});
 
     const toolsRegistry = new Map<string, any>();
     for (const tool of dsl.tools ?? []) {
       if (typeof tool === 'string') {
-        toolsRegistry.set(tool, await this.toolsService.getToolByName(tool));
+        toolsRegistry.set(tool, await this.toolsService.getToolByName(tool, userId));
       }
     }
 
@@ -120,7 +120,7 @@ ${JSON.stringify(agent.output, null, 2)}
             data: {
               agentId: persistentAgent.id,
               toolkitId: 'knowledge-base-toolkit-01',
-              settings: { agentId: persistentAgent.id },
+              settings: {},
             },
           });
         }
@@ -133,7 +133,7 @@ ${JSON.stringify(agent.output, null, 2)}
 
       agentsRegistry.set(
         agent.name,
-        await this.agentService.createAgentInstance(prompt, tools),
+        await this.agentService.createAgentInstance(prompt, tools, undefined, userId),
       );
     }
 
@@ -509,7 +509,7 @@ const classification = JSON.parse(resultString); // 如果需要结构化数据�
     const workflowRecord = await this.getWorkflow(id, userId);
 
     // 从 DSL 创建工作流实例，传入工作流 ID 以支持智能体持久化
-    const workflow = await this.fromDsl(workflowRecord.DSL, id);
+    const workflow = await this.fromDsl(workflowRecord.DSL, id, userId);
 
     // 执行工作流
     const result = await workflow.execute(input);

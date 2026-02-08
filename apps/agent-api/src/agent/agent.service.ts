@@ -264,10 +264,10 @@ export class AgentService {
     });
   }
 
-  async createAgentInstance(prompt: string, tools: string[], options?: any) {
+  async createAgentInstance(prompt: string, tools: string[], options?: any, userId?: string) {
     const toolsInstances = await Promise.all(
       tools.map(async (tool) => {
-        const toolInstance = await this.toolsService.getToolByName(tool);
+        const toolInstance = await this.toolsService.getToolByName(tool, userId);
         return toolInstance;
       }),
     );

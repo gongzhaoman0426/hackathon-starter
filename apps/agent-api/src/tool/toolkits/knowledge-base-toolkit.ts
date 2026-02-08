@@ -9,7 +9,7 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
   name = 'knowledge base toolkit';
   description = '知识库工具包，提供知识库查询和管理功能';
   tools: FunctionTool<any, any>[] = [];
-  settings = { agentId: '' };
+  settings = {};
   private readonly logger = new Logger(KnowledgeBaseToolkit.name);
   constructor(private readonly knowledgeBaseService: KnowledgeBaseService) {
     super();
@@ -21,10 +21,10 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
       const listKnowledgeBasesTool = FunctionTool.from(
         async () => {
           const startTime = Date.now();
-          this.logger.log('[Tool:listAgentKnowledgeBases] Called, agentId=' + this.settings.agentId);
+          this.logger.log('[Tool:listAgentKnowledgeBases] Called, agentId=' + this.agentId);
           try {
             const agentKnowledgeBases = await this.knowledgeBaseService.getAgentKnowledgeBases(
-              this.settings.agentId as string,
+              this.agentId as string,
             );
             const result = agentKnowledgeBases.map((akb: any) => ({
               id: akb.knowledgeBase.id,
@@ -58,12 +58,12 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
           try {
             // 验证智能体是否有权限访问该知识库
             const agentKnowledgeBases = await this.knowledgeBaseService.getAgentKnowledgeBases(
-              this.settings.agentId as string,
+              this.agentId as string,
             );
             const hasAccess = agentKnowledgeBases.some((akb: any) => akb.knowledgeBase.id === knowledgeBaseId);
 
             if (!hasAccess) {
-              this.logger.warn(`[Tool:queryKnowledgeBase] Access denied for agent ${this.settings.agentId} to knowledge base ${knowledgeBaseId}`);
+              this.logger.warn(`[Tool:queryKnowledgeBase] Access denied for agent ${this.agentId} to knowledge base ${knowledgeBaseId}`);
               return JSON.stringify({ error: '智能体无权限访问该知识库' }, null, 2);
             }
 
@@ -102,8 +102,6 @@ export class KnowledgeBaseToolkit extends BaseToolkit {
   }
 
   validateSettings(): void {
-    if (!this.settings.agentId) {
-      throw new Error('agentId is required');
-    }
+    // agentId 由 setAgentContext 设置，不再通过 settings 校验
   }
 }
