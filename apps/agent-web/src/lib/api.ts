@@ -15,7 +15,7 @@ import type {
   ChatWithKnowledgeBaseDto
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = '/api';
 
 const TOKEN_KEY = 'auth_token';
 
@@ -98,16 +98,16 @@ class ApiClient {
 
   // GET 请求
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const url = new URL(endpoint, API_BASE_URL);
+    const searchParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
+          searchParams.append(key, String(value));
         }
       });
     }
-
-    return this.request<T>(url.pathname + url.search);
+    const query = searchParams.toString();
+    return this.request<T>(query ? `${endpoint}?${query}` : endpoint);
   }
 
   // POST 请求

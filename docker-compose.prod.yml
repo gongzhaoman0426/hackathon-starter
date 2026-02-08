@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hackathon}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -16,6 +16,11 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # Redis缓存
   redis:
@@ -29,88 +34,46 @@ services:
 
   # 数据库迁移
   db-migrate:
-    build:
-      context: .
-      dockerfile: apps/agent-api/Dockerfile
-      target: production
+    image: ${IMAGE_REGISTRY}/agent-api:latest
     container_name: db-migrate-prod
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/hackathon}
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - app-network
-    # ✅ 只执行迁移，不启动应用
     command: sh -c "cd apps/agent-api && pnpm run db:deploy"
-    restart: "no"  # 运行一次就退出
+    restart: "no"
 
   # API Agent服务 (NestJS)
   agent-api:
-    build:
-      context: .
-      dockerfile: apps/agent-api/Dockerfile
-      target: production
+    image: ${IMAGE_REGISTRY}/agent-api:latest
     container_name: agent-api-prod
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/hackathon}
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - LLAMA_CLOUD_API_KEY=${LLAMA_CLOUD_API_KEY}
     depends_on:
       db-migrate:
         condition: service_completed_successfully
-
     networks:
       - app-network
     restart: unless-stopped
 
-  # Hono API服务
-  hono:
-    build:
-      context: .
-      dockerfile: apps/hono/Dockerfile
-      target: production
-    container_name: hono-prod
+  # 前端应用 (React + Nginx)
+  agent-web:
+    image: ${IMAGE_REGISTRY}/agent-web:latest
+    container_name: agent-web-prod
     ports:
-      - "3002:3002"
-    environment:
-      - NODE_ENV=production
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  # Next.js前端应用
-  next:
-    build:
-      context: .
-      dockerfile: apps/next/Dockerfile
-      target: production
-    container_name: next-prod
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3001}
-      - NEXT_PUBLIC_HONO_API_URL=${NEXT_PUBLIC_HONO_API_URL:-http://localhost:3002}
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  # Vite前端应用
-  vite:
-    build:
-      context: .
-      dockerfile: apps/vite/Dockerfile
-      target: production
-    container_name: vite-prod
-    ports:
-      - "5173:3000"
-    environment:
-      - NODE_ENV=production
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:3001}
-      - VITE_HONO_API_URL=${VITE_HONO_API_URL:-http://localhost:3002}
+      - "80:80"
+    depends_on:
+      - agent-api
     networks:
       - app-network
     restart: unless-stopped

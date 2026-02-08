@@ -28,38 +28,6 @@ COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 # 安装依赖
 RUN pnpm install --frozen-lockfile
 
-# 开发阶段
-FROM installer AS development
-WORKDIR /app
-
-# 复制裁剪后的完整源码
-COPY --from=pruner /app/out/full/ .
-
-COPY apps/agent-api/.env.development ./apps/agent-api/.env
-
-# 生成 Prisma 客户端
-RUN cd apps/agent-api && pnpm run db:generate
-
-# 添加数据库迁移脚本
-RUN echo '#!/bin/sh\n\
-set -e\n\
-echo "🔄 执行数据库迁移..."\n\
-cd /app/apps/agent-api && pnpm run db:deploy\n\
-echo "✅ 迁移完成！"\n\
-echo "🚀 启动应用..."\n\
-exec "$@"' > /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# 设置环境变量确保NestJS绑定到正确的主机
-ENV HOST=0.0.0.0
-ENV PORT=3001
-
-# 暴露端口
-EXPOSE 3001
-
-# 开发模式启动命令
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["turbo", "run", "dev", "--filter=agent-api"]
-
 # 构建阶段
 FROM installer AS builder
 WORKDIR /app
