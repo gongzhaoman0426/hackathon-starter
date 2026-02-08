@@ -49,24 +49,12 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g pnpm
-
-# 复制必要文件
-COPY --from=pruner /app/out/json/package.json ./
-COPY --from=pruner /app/out/json/pnpm-lock.yaml ./
-COPY --from=pruner /app/out/json/apps/agent-api/package.json ./apps/agent-api/
-
-# 只安装生产依赖
-RUN pnpm install --frozen-lockfile --prod
-
-# 复制构建产物
+# 从 builder 复制构建产物和依赖（已包含生成好的 Prisma 客户端）
 COPY --from=builder /app/apps/agent-api/dist ./apps/agent-api/dist
 COPY --from=builder /app/apps/agent-api/prisma ./apps/agent-api/prisma
-
-# 生成 Prisma 客户端（锁定版本，避免 npx 拉取最新版）
-ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-RUN cd apps/agent-api && npx prisma@5.10.2 generate
-ENV DATABASE_URL=""
+COPY --from=builder /app/apps/agent-api/package.json ./apps/agent-api/
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
 
 # 暴露端口
 EXPOSE 3001

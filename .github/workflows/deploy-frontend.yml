@@ -3,9 +3,6 @@ name: Deploy Frontend
 on:
   push:
     branches: [frontend]
-    paths:
-      - 'apps/agent-web/**'
-      - 'packages/**'
   workflow_dispatch:
 
 env:
