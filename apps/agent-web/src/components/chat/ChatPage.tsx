@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChatSession } from '../../hooks/use-chat-sessions'
-import { useChatWithAgent, useAgents } from '../../services/agent.service'
+import { useAgents } from '../../services/agent.service'
+import { apiClient } from '../../lib/api'
 import { queryKeys } from '../../lib/query-keys'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
@@ -16,8 +17,10 @@ export function ChatPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const chatMutation = useChatWithAgent()
   const { data: agents = [] } = useAgents()
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [isBusy, setIsBusy] = useState(false)
+  const assistantMsgIdRef = useRef<string>('')
 
   const agentFromUrl = searchParams.get('agent') || ''
   const lastAgentId = localStorage.getItem(LAST_AGENT_KEY)
@@ -80,50 +83,88 @@ export function ChatPage() {
         return { ...old, messages: [...old.messages, userMessage] }
       })
 
+      const assistantMsgId = crypto.randomUUID()
+      assistantMsgIdRef.current = assistantMsgId
+      let assistantCreated = false
+
+      setIsStreaming(true)
+      setIsBusy(true)
+
       try {
-        const response = await chatMutation.mutateAsync({
-          id: currentAgentId,
-          data: {
+        await apiClient.streamChatWithAgent(
+          currentAgentId,
+          {
             message: content,
             sessionId: activeSessionId,
             context: {},
             generateTitle: isFirstMessage,
           },
-        })
-
-        // 乐观更新：追加助手回复
-        const assistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: response.response,
-          sessionId: activeSessionId,
-          createdAt: new Date().toISOString(),
-        }
-        queryClient.setQueryData(sessionQueryKey, (old: any) => {
-          if (!old) return old
-          return { ...old, messages: [...old.messages, assistantMessage] }
-        })
+          (delta) => {
+            if (!assistantCreated) {
+              // 第一个 delta 到达：创建助手消息，关闭 ThinkingIndicator
+              assistantCreated = true
+              const assistantMessage: ChatMessage = {
+                id: assistantMsgId,
+                role: 'assistant',
+                content: delta,
+                sessionId: activeSessionId!,
+                createdAt: new Date().toISOString(),
+              }
+              queryClient.setQueryData(sessionQueryKey, (old: any) => {
+                if (!old) return old
+                return { ...old, messages: [...old.messages, assistantMessage] }
+              })
+              setIsStreaming(false)
+            } else {
+              // 后续 delta：追加内容
+              queryClient.setQueryData(sessionQueryKey, (old: any) => {
+                if (!old) return old
+                const msgs = old.messages.map((m: ChatMessage) =>
+                  m.id === assistantMsgId
+                    ? { ...m, content: m.content + delta }
+                    : m
+                )
+                return { ...old, messages: msgs }
+              })
+            }
+          },
+        )
 
         // 首次消息后刷新侧边栏会话列表（标题已生成）
         if (isFirstMessage) {
           queryClient.invalidateQueries({ queryKey: queryKeys.chatSessions() })
         }
       } catch {
-        // 乐观更新：追加错误消息
-        const errorMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: '抱歉，发生了错误，请稍后重试。',
-          sessionId: activeSessionId,
-          createdAt: new Date().toISOString(),
+        // 错误时：如果助手消息还没创建，先创建一条
+        if (!assistantCreated) {
+          const errorMsg: ChatMessage = {
+            id: assistantMsgId,
+            role: 'assistant',
+            content: '抱歉，发生了错误，请稍后重试。',
+            sessionId: activeSessionId!,
+            createdAt: new Date().toISOString(),
+          }
+          queryClient.setQueryData(sessionQueryKey, (old: any) => {
+            if (!old) return old
+            return { ...old, messages: [...old.messages, errorMsg] }
+          })
+        } else {
+          queryClient.setQueryData(sessionQueryKey, (old: any) => {
+            if (!old) return old
+            const msgs = old.messages.map((m: ChatMessage) =>
+              m.id === assistantMsgId
+                ? { ...m, content: m.content || '抱歉，发生了错误，请稍后重试。' }
+                : m
+            )
+            return { ...old, messages: msgs }
+          })
         }
-        queryClient.setQueryData(sessionQueryKey, (old: any) => {
-          if (!old) return old
-          return { ...old, messages: [...old.messages, errorMessage] }
-        })
+      } finally {
+        setIsStreaming(false)
+        setIsBusy(false)
       }
     },
-    [currentAgentId, sessionId, currentAgent, navigate, chatMutation, queryClient]
+    [currentAgentId, sessionId, currentAgent, navigate, queryClient]
   )
 
   return (
@@ -131,12 +172,12 @@ export function ChatPage() {
       <ChatHeader />
       <ChatMessages
         messages={messages}
-        isLoading={chatMutation.isPending}
+        isLoading={isStreaming}
       />
       <ChatInput
         onSend={handleSend}
-        disabled={!currentAgentId || chatMutation.isPending}
-        isLoading={chatMutation.isPending}
+        disabled={!currentAgentId || isBusy}
+        isLoading={isBusy}
         agentId={currentAgentId}
         onAgentChange={handleAgentChange}
         agentLocked={!!session}

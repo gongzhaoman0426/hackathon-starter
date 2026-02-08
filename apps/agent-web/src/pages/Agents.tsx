@@ -829,12 +829,19 @@ export function Agents() {
                 {/* 接口信息 */}
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">接口地址</h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <Badge variant="default" className="shrink-0">POST</Badge>
                     <code className="flex-1 rounded-md bg-muted/50 border px-3 py-1.5 text-xs break-all">
                       {`http://localhost:3001/api/agents/${apiDialogAgent.id}/chat`}
                     </code>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="shrink-0 bg-emerald-600">POST (SSE)</Badge>
+                    <code className="flex-1 rounded-md bg-muted/50 border px-3 py-1.5 text-xs break-all">
+                      {`http://localhost:3001/api/agents/${apiDialogAgent.id}/chat/stream`}
+                    </code>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">流式接口返回 Server-Sent Events，逐字输出回复内容</p>
                 </div>
 
                 {/* 请求参数 */}
@@ -858,6 +865,12 @@ export function Agents() {
                           <td className="px-3 py-2 text-muted-foreground">用户发送的消息内容</td>
                         </tr>
                         <tr className="border-t">
+                          <td className="px-3 py-2 font-mono">sessionId</td>
+                          <td className="px-3 py-2 text-muted-foreground">string</td>
+                          <td className="px-3 py-2"><Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">必填</Badge></td>
+                          <td className="px-3 py-2 text-muted-foreground">会话 ID，同一会话使用相同 ID 以保持上下文</td>
+                        </tr>
+                        <tr className="border-t">
                           <td className="px-3 py-2 font-mono">context</td>
                           <td className="px-3 py-2 text-muted-foreground">object</td>
                           <td className="px-3 py-2"><Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">可选</Badge></td>
@@ -876,7 +889,7 @@ export function Agents() {
 
                 {/* 代码示例 */}
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium">代码示例</h3>
+                  <h3 className="text-sm font-medium">代码示例（普通请求）</h3>
                   <Tabs defaultValue="curl">
                     <TabsList>
                       <TabsTrigger value="curl">cURL</TabsTrigger>
@@ -888,6 +901,7 @@ export function Agents() {
   -H "Content-Type: application/json" \\
   -d '{
     "message": "你好，请介绍一下你自己",
+    "sessionId": "your-session-id",
     "generateTitle": true
   }'`} />
                     </TabsContent>
@@ -899,6 +913,7 @@ export function Agents() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message: "你好，请介绍一下你自己",
+      sessionId: crypto.randomUUID(),
       generateTitle: true,
     }),
   }
@@ -907,17 +922,97 @@ const data = await response.json();
 console.log(data.response);`} />
                     </TabsContent>
                     <TabsContent value="python">
-                      <CodeBlock id="python" code={`import requests
+                      <CodeBlock id="python" code={`import requests, uuid
 
 response = requests.post(
     "http://localhost:3001/api/agents/${apiDialogAgent.id}/chat",
     json={
         "message": "你好，请介绍一下你自己",
+        "sessionId": str(uuid.uuid4()),
         "generateTitle": True,
     },
 )
 data = response.json()
 print(data["response"])`} />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+
+                {/* 流式代码示例 */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">代码示例（SSE 流式请求）</h3>
+                  <Tabs defaultValue="curl-stream">
+                    <TabsList>
+                      <TabsTrigger value="curl-stream">cURL</TabsTrigger>
+                      <TabsTrigger value="javascript-stream">JavaScript</TabsTrigger>
+                      <TabsTrigger value="python-stream">Python</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="curl-stream">
+                      <CodeBlock id="curl-stream" code={`curl -N -X POST http://localhost:3001/api/agents/${apiDialogAgent.id}/chat/stream \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "message": "你好，请介绍一下你自己",
+    "sessionId": "your-session-id",
+    "generateTitle": true
+  }'`} />
+                    </TabsContent>
+                    <TabsContent value="javascript-stream">
+                      <CodeBlock id="javascript-stream" code={`const res = await fetch(
+  "http://localhost:3001/api/agents/${apiDialogAgent.id}/chat/stream",
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: "你好，请介绍一下你自己",
+      sessionId: crypto.randomUUID(),
+      generateTitle: true,
+    }),
+  }
+);
+const reader = res.body.getReader();
+const decoder = new TextDecoder();
+let buffer = "";
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  buffer += decoder.decode(value, { stream: true });
+  const lines = buffer.split("\\n");
+  buffer = lines.pop();
+  let eventName = "";
+  for (const line of lines) {
+    if (line.startsWith("event: ")) eventName = line.slice(7);
+    else if (line.startsWith("data: ")) {
+      const data = JSON.parse(line.slice(6));
+      if (eventName === "delta") process.stdout.write(data.delta);
+      if (eventName === "done") console.log("\\n完成:", data);
+      eventName = "";
+    }
+  }
+}`} />
+                    </TabsContent>
+                    <TabsContent value="python-stream">
+                      <CodeBlock id="python-stream" code={`import requests, json, uuid
+
+response = requests.post(
+    "http://localhost:3001/api/agents/${apiDialogAgent.id}/chat/stream",
+    json={
+        "message": "你好，请介绍一下你自己",
+        "sessionId": str(uuid.uuid4()),
+        "generateTitle": True,
+    },
+    stream=True,
+)
+event_name = ""
+for line in response.iter_lines(decode_unicode=True):
+    if line.startswith("event: "):
+        event_name = line[7:]
+    elif line.startswith("data: "):
+        data = json.loads(line[6:])
+        if event_name == "delta":
+            print(data["delta"], end="", flush=True)
+        elif event_name == "done":
+            print("\\n完成:", data)
+        event_name = ""`} />
                     </TabsContent>
                   </Tabs>
                 </div>

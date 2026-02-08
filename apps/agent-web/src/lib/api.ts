@@ -128,6 +128,57 @@ class ApiClient {
     return this.post<any>(`agents/${id}/chat`, data);
   }
 
+  async streamChatWithAgent(
+    id: string,
+    data: ChatWithAgentDto,
+    onDelta: (delta: string) => void,
+  ): Promise<{ response: string; title?: string; agentId: string; agentName: string }> {
+    const url = `${API_BASE_URL}/agents/${id}/chat/stream`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const e = await res.json(); msg = e.message || msg; } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let doneData: any = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // 解析 SSE 事件
+      const lines = buffer.split('\n');
+      buffer = lines.pop()!; // 保留未完成的行
+      let eventName = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventName = line.slice(7);
+        } else if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6);
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (eventName === 'delta') {
+              onDelta(parsed.delta);
+            } else if (eventName === 'done') {
+              doneData = parsed;
+            }
+          } catch { /* ignore parse errors */ }
+          eventName = '';
+        }
+      }
+    }
+
+    return doneData || { response: '', agentId: id, agentName: '' };
+  }
+
   // Chat Session APIs
   async getAllChatSessions(): Promise<ChatSessionSummary[]> {
     return this.get<ChatSessionSummary[]>('agents/sessions/all');

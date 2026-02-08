@@ -452,6 +452,137 @@ export class AgentService {
     return result;
   }
 
+  async *chatWithAgentStream(agentId: string, chatDto: ChatWithAgentDto) {
+    const startTime = Date.now();
+
+    // 获取智能体信息
+    const agent = await this.findOne(agentId);
+    this.logger.log(`[ChatStream] Agent: ${agent.name} (${agentId})`);
+    this.logger.log(`[ChatStream] User message: ${chatDto.message}`);
+
+    // 会话不存在则创建
+    let session = await this.prisma.chatSession.findUnique({
+      where: { id: chatDto.sessionId },
+    });
+    if (!session) {
+      session = await this.prisma.chatSession.create({
+        data: {
+          id: chatDto.sessionId,
+          agentId,
+          agentName: agent.name,
+        },
+      });
+    }
+
+    // 保存用户消息到 DB
+    await this.prisma.chatMessage.create({
+      data: {
+        role: 'user',
+        content: chatDto.message,
+        sessionId: chatDto.sessionId,
+      },
+    });
+
+    // 从 DB 加载历史消息（排除刚添加的当前用户消息）
+    const dbMessages = await this.prisma.chatMessage.findMany({
+      where: { sessionId: chatDto.sessionId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const fullHistory = dbMessages.slice(0, -1).map((msg) => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    }));
+
+    // 获取智能体的工具
+    const tools = await this.toolsService.getAgentTools(agentId);
+    this.logger.log(`[ChatStream] Available tools: ${tools.map((t: any) => t.metadata?.name || t.name).join(', ')}`);
+
+    // 处理聊天记忆
+    const { enhancedPrompt, recentHistory } =
+      await this.chatMemoryService.processMemory(
+        agentId,
+        chatDto.sessionId,
+        chatDto.message,
+        fullHistory,
+        agent.prompt,
+      );
+
+    // 创建智能体实例
+    const agentInstance = await this.llamaIndexService.createAgent(
+      tools,
+      enhancedPrompt,
+    );
+
+    // 使用 runStream 流式执行对话
+    const { agentStreamEvent, stopAgentEvent } = await import('@llamaindex/workflow');
+    const stream = agentInstance.runStream(chatDto.message, {
+      chatHistory: recentHistory,
+    });
+
+    let fullResponse = '';
+    for await (const event of stream) {
+      if (agentStreamEvent.include(event)) {
+        const delta = event.data.delta;
+        fullResponse = event.data.response;
+        yield { event: 'delta', data: { delta } };
+      } else if (stopAgentEvent.include(event)) {
+        fullResponse = event.data.result as string;
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    this.logger.log(`[ChatStream] Response (${elapsed}ms): ${fullResponse.substring(0, 200)}${fullResponse.length > 200 ? '...' : ''}`);
+
+    // 保存助手消息到 DB
+    await this.prisma.chatMessage.create({
+      data: {
+        role: 'assistant',
+        content: fullResponse,
+        sessionId: chatDto.sessionId,
+      },
+    });
+
+    // 生成标题
+    let title: string | undefined;
+    if (chatDto.generateTitle) {
+      try {
+        title = await this.generateTitle(chatDto.message);
+        await this.prisma.chatSession.update({
+          where: { id: chatDto.sessionId },
+          data: { title },
+        });
+      } catch (error) {
+        this.logger.warn(`[ChatStream] Failed to generate title: ${error}`);
+        title = chatDto.message.slice(0, 50);
+        await this.prisma.chatSession.update({
+          where: { id: chatDto.sessionId },
+          data: { title },
+        });
+      }
+    }
+
+    // 发送完成事件
+    yield {
+      event: 'done',
+      data: {
+        agentId,
+        agentName: agent.name,
+        response: fullResponse,
+        title,
+      },
+    };
+
+    // 异步向量化
+    const historyWithCurrentReply = [
+      ...fullHistory,
+      { role: 'user' as const, content: chatDto.message },
+      { role: 'assistant' as const, content: fullResponse },
+    ];
+    this.chatMemoryService
+      .vectorizeOlderPairs(agentId, chatDto.sessionId, historyWithCurrentReply)
+      .catch((err) => this.logger.error(`[ChatStream] 异步向量化失败: ${err}`));
+  }
+
   private async generateTitle(userMessage: string): Promise<string> {
     const reply = await this.llamaIndexService.chat(
       userMessage,

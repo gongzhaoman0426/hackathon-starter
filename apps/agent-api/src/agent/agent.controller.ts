@@ -6,7 +6,9 @@ import {
   Param,
   Post,
   Put,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { AgentService } from './agent.service';
 import { CreateAgentDto, UpdateAgentDto, ChatWithAgentDto } from './agent.type';
@@ -55,6 +57,27 @@ export class AgentController {
     @Body() chatDto: ChatWithAgentDto,
   ) {
     return this.agentService.chatWithAgent(id, chatDto);
+  }
+
+  @Post(':id/chat/stream')
+  async chatStream(
+    @Param('id') id: string,
+    @Body() chatDto: ChatWithAgentDto,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      for await (const chunk of this.agentService.chatWithAgentStream(id, chatDto)) {
+        res.write(`event: ${chunk.event}\ndata: ${JSON.stringify(chunk.data)}\n\n`);
+      }
+    } catch (error) {
+      res.write(`event: error\ndata: ${JSON.stringify({ message: (error as Error).message })}\n\n`);
+    }
+    res.end();
   }
 
   @Get(':id/toolkits')
